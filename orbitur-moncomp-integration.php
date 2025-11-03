@@ -10,12 +10,13 @@
 if (!defined('ABSPATH')) exit;
 
 // Updater
-require_once __DIR__ . '/updater/plugin-update-checker.php';
+require '/updater/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
-$updateChecker = Puc_v4_Factory::buildUpdateChecker(
-    'https://github.com/adipanchal/orbitur-moncomp-integration', 
-    __FILE__,                                           
-    'orbitur-moncomp-integration'                                  
+$myUpdateChecker = PucFactory::buildUpdateChecker(
+	'https://github.com/adipanchal/orbitur-moncomp-integration',
+	__FILE__, //Full path to the main plugin file or functions.php.
+	'orbitur-moncomp-integration'
 );
 
 $updateChecker->setBranch('main');
