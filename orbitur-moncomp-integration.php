@@ -10,16 +10,44 @@
 if (!defined('ABSPATH')) exit;
 
 // Updater
-require '/updater/plugin-update-checker.php';
-use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+$autoloader = __DIR__ . '/vendor/autoload.php';
+$manual_loader = plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
 
-$myUpdateChecker = PucFactory::buildUpdateChecker(
-	'https://github.com/adipanchal/orbitur-moncomp-integration',
-	__FILE__, //Full path to the main plugin file or functions.php.
-	'orbitur-moncomp-integration'
-);
+try {
+    if ( file_exists( $autoloader ) ) {
+        require_once $autoloader;
+    } elseif ( file_exists( $manual_loader ) ) {
+        require_once $manual_loader;
+    } else {
+        error_log('Orbitur: update-checker not found in vendor/autoload or plugin-update-checker folder.');
+    }
 
-$updateChecker->setBranch('main');
+    // Prefer v5 namespaced factory if available
+    if ( class_exists( 'YahnisElsts\PluginUpdateChecker\v5\PucFactory' ) ) {
+        $updateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+            'https://github.com/adipanchal/orbitur-moncomp-integration',
+            __FILE__,
+            'orbitur-moncomp-integration'
+        );
+        $updateChecker->setBranch('main');
+
+        if ( defined('GITHUB_UPDATER_TOKEN') && ! empty( GITHUB_UPDATER_TOKEN ) ) {
+            $updateChecker->setAuthentication( GITHUB_UPDATER_TOKEN );
+        }
+    } elseif ( class_exists('Puc_v4_Factory') ) {
+        // fallback for older copies of the library
+        $updateChecker = Puc_v4_Factory::buildUpdateChecker(
+            'https://github.com/adipanchal/orbitur-moncomp-integration',
+            __FILE__,
+            'orbitur-moncomp-integration'
+        );
+        $updateChecker->setBranch('main');
+    } else {
+        error_log('Orbitur: plugin-update-checker classes not available after include.');
+    }
+} catch ( Throwable $e ) {
+    error_log('Orbitur: update-checker exception: ' . $e->getMessage());
+}
 // End Updater
 
 define('ORBITUR_PLUGIN_DIR', plugin_dir_path(__FILE__));
