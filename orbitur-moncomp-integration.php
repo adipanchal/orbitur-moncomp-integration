@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Updater
 $autoloader = __DIR__ . '/vendor/autoload.php';
-$manual_loader = plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
+$manual_loader = plugin_dir_path(__FILE__) . 'updater/plugin-update-checker.php';
 
 try {
     if ( file_exists( $autoloader ) ) {
