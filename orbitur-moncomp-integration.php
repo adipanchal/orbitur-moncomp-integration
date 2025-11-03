@@ -1,6 +1,7 @@
 <?php
 /**
  * Plugin Name: Orbitur MonCompte Integration
+ * Plugin URI: https://github.com/adipanchal/orbitur-moncomp-integration/
  * Description: Integrates WordPress with Orbitur MonCompte (SOAP) and WebCamp widgets. Login/Register + bookings skeleton.
  * Version: 1.0 Beta
  * Author: Blendd
