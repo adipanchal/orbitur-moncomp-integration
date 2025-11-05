@@ -54,6 +54,7 @@ define('ORBITUR_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ORBITUR_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Load core files
+require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/parser.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/user-provision.php';

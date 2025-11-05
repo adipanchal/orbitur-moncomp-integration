@@ -1,87 +1,128 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/* Use admin-post (non-AJAX) handlers to process normal form submits */
+require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/user-provision.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/parser.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
 
-/* Login handler */
-add_action('admin_post_nopriv_orbitur_login_submit','orbitur_handle_login_submit');
-add_action('admin_post_orbitur_login_submit','orbitur_handle_login_submit');
-function orbitur_handle_login_submit(){
-    if (!isset($_POST['orbitur_login_nonce']) || !wp_verify_nonce($_POST['orbitur_login_nonce'],'orbitur_login_action')) {
-        wp_safe_redirect(site_url('/area-cliente/?err=nonce'));
-        exit;
+// Health check
+add_action('admin_post_nopriv_orbitur_health_check', function(){
+    header('Content-Type: application/json');
+    $cfg = orbitur_get_config();
+    $out = ['plugin_loaded'=>true, 'endpoint'=> $cfg['endpoint'] ? $cfg['endpoint'] : 'NO_ENDPOINT'];
+    $email = $cfg['admin_email']; $pw = $cfg['admin_pw'];
+    if ($cfg['endpoint'] && $email && $pw) {
+        $login = orbitur_login_moncomp($email, $pw);
+        if (is_wp_error($login)) $out['moncomp_login'] = 'error: '.$login->get_error_message();
+        else { $out['moncomp_login']='ok'; $out['idSession'] = $login; }
+    } else {
+        $out['moncomp_login'] = 'skipped - no creds';
     }
-    $email = sanitize_email($_POST['email'] ?? '');
-    $password = sanitize_text_field($_POST['password'] ?? '');
-    if (empty($email) || empty($password)) {
-        wp_safe_redirect(site_url('/area-cliente/?err=missing'));
-        exit;
-    }
-    $login_res = orbitur_login($email, $password);
-    if (is_wp_error($login_res)) {
-        wp_safe_redirect(site_url('/area-cliente/?err=invalid'));
-        exit;
-    }
-    $idSession = $login_res;
-    // optional getPerson
-    $person_id = '';
-    $person = orbitur_getPerson($idSession);
-    if (!is_wp_error($person) && isset($person['personId'])) $person_id = $person['personId'];
-    $user_id = orbitur_provision_wp_user_after_login($email, $person_id, $idSession);
-    if (is_wp_error($user_id)) {
-        wp_safe_redirect(site_url('/area-cliente/?err=usercreate'));
-        exit;
-    }
-    wp_safe_redirect(site_url('/area-cliente/bem-vindo'));
+    echo json_encode($out);
     exit;
-}
+});
 
-/* Register handler */
-add_action('admin_post_nopriv_orbitur_register_submit','orbitur_handle_register_submit');
-add_action('admin_post_orbitur_register_submit','orbitur_handle_register_submit');
-function orbitur_handle_register_submit(){
-    if (!isset($_POST['orbitur_register_nonce']) || !wp_verify_nonce($_POST['orbitur_register_nonce'],'orbitur_register_action')) {
-        wp_safe_redirect(site_url('/area-cliente/registo-de-conta?err=nonce'));
+// Login handler
+add_action('admin_post_nopriv_orbitur_login', function(){
+    try {
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $pw = isset($_POST['password']) ? $_POST['password'] : '';
+        $redirect = site_url('/area-cliente/bem-vindo');
+
+        if (empty($email) || empty($pw)) {
+            wp_safe_redirect(site_url('/area-cliente/?err=missing'));
+            exit;
+        }
+
+        $login = orbitur_login_moncomp($email, $pw);
+        if (is_wp_error($login)) {
+            orbitur_log('Login failed: '. $login->get_error_message(), ['email'=>$email]);
+            wp_safe_redirect(site_url('/area-cliente/?err=auth'));
+            exit;
+        }
+
+        $user_id = orbitur_provision_wp_user_after_login($email, '', $login);
+        if (is_wp_error($user_id)) {
+            orbitur_log('Provision failed: '. $user_id->get_error_message(), ['email'=>$email]);
+            wp_safe_redirect(site_url('/area-cliente/?err=provision'));
+            exit;
+        }
+
+        delete_transient('orbitur_bookings_'.$user_id);
+        wp_safe_redirect($redirect);
+        exit;
+
+    } catch (Throwable $e) {
+        orbitur_log('Login handler exception: '.$e->getMessage());
+        wp_safe_redirect(site_url('/area-cliente/?err=exception'));
         exit;
     }
-    $first = sanitize_text_field($_POST['first_name'] ?? '');
-    $last  = sanitize_text_field($_POST['last_name'] ?? '');
-    $email = sanitize_email($_POST['email'] ?? '');
-    $password = sanitize_text_field($_POST['password'] ?? '');
-    $accept = isset($_POST['accept_terms']) ? true : false;
-    if (!$first || !$last || !$email || !$password || !$accept) {
-        wp_safe_redirect(site_url('/area-cliente/registo-de-conta?err=missing'));
+});
+
+// Register handler (basic mapping)
+add_action('admin_post_nopriv_orbitur_register', function(){
+    try {
+        $first = isset($_POST['first_name']) ? sanitize_text_field($_POST['first_name']) : '';
+        $last  = isset($_POST['last_name']) ? sanitize_text_field($_POST['last_name']) : '';
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $pw    = isset($_POST['password']) ? $_POST['password'] : '';
+        $redirect = isset($_POST['redirect']) ? esc_url_raw($_POST['redirect']) : site_url('/area-cliente/bem-vindo');
+
+        if (empty($first) || empty($last) || empty($email) || empty($pw)) {
+            wp_safe_redirect(site_url('/area-cliente/registo-de-conta/?err=missing'));
+            exit;
+        }
+
+        $xml_body = '<ns1:createAccount><RqCreateAccount>'
+            . '<email>'.esc_html($email).'</email>'
+            . '<pw>'.esc_html($pw).'</pw>'
+            . '<firstName>'.esc_html($first).'</firstName>'
+            . '<lastName>'.esc_html($last).'</lastName>'
+            . '<name>'.esc_html($first . ' ' . $last).'</name>'
+            . '</RqCreateAccount></ns1:createAccount>';
+
+        $res = orbitur_call_soap('createAccount', $xml_body);
+        if (is_wp_error($res)) {
+            orbitur_log('createAccount call failed', ['err'=>$res->get_error_message()]);
+            wp_safe_redirect(site_url('/area-cliente/registo-de-conta/?err=api'));
+            exit;
+        }
+
+        $login = orbitur_login_moncomp($email, $pw);
+        if (is_wp_error($login)) {
+            orbitur_log('Login after create failed', ['email'=>$email, 'err' => $login->get_error_message()]);
+            wp_safe_redirect(site_url('/area-cliente/registo-de-conta/?err=login_after'));
+            exit;
+        }
+
+        $user_id = orbitur_provision_wp_user_after_login($email, '', $login);
+        if (is_wp_error($user_id)) {
+            orbitur_log('Provision after create failed', ['email'=>$email]);
+            wp_safe_redirect(site_url('/area-cliente/registo-de-conta/?err=provision'));
+            exit;
+        }
+
+        delete_transient('orbitur_bookings_'.$user_id);
+        wp_safe_redirect($redirect);
+        exit;
+
+    } catch (Throwable $e) {
+        orbitur_log('Register handler exception: '.$e->getMessage());
+        wp_safe_redirect(site_url('/area-cliente/registo-de-conta/?err=exception'));
         exit;
     }
-    // check existing person
-    $exists = orbitur_findPersonWithEmail($email);
-    if (is_wp_error($exists)) {
-        wp_safe_redirect(site_url('/area-cliente/registo-de-conta?err=soaper'));
+});
+
+// Logout
+add_action('admin_post_orbitur_logout', function(){
+    if (!is_user_logged_in()) {
+        wp_safe_redirect(site_url('/'));
         exit;
     }
-    if ($exists === true) {
-        wp_safe_redirect(site_url('/area-cliente/registo-de-conta?err=exists'));
-        exit;
-    }
-    $payload = ['firstname'=>$first,'lastname'=>$last,'email'=>$email,'password'=>$password];
-    $create = orbitur_createAccount($payload);
-    if (is_wp_error($create)) {
-        wp_safe_redirect(site_url('/area-cliente/registo-de-conta?err=createfail'));
-        exit;
-    }
-    // try auto-login
-    $login_res = orbitur_login($email, $password);
-    if (is_wp_error($login_res)) {
-        wp_safe_redirect(site_url('/area-cliente/?msg=created'));
-        exit;
-    }
-    $idSession = $login_res;
-    $person_id = is_string($create) ? $create : '';
-    $user_id = orbitur_provision_wp_user_after_login($email, $person_id, $idSession);
-    if (is_wp_error($user_id)) {
-        wp_safe_redirect(site_url('/area-cliente/registo-de-conta?err=usercreate'));
-        exit;
-    }
-    wp_safe_redirect(site_url('/area-cliente/bem-vindo'));
+    $uid = get_current_user_id();
+    delete_user_meta($uid, 'moncomp_idSession');
+    wp_logout();
+    wp_safe_redirect(site_url('/'));
     exit;
-}
+});

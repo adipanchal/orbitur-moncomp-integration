@@ -1,19 +1,12 @@
-<?php
-if (!defined('ABSPATH')) exit;
-$err = $_GET['err'] ?? '';
-$msg = '';
-if ($err === 'invalid') $msg = 'E-mail ou palavra-passe incorretos.';
-elseif ($err === 'missing') $msg = 'Por favor preencha todos os campos.';
-elseif ($err === 'nonce') $msg = 'Erro de segurança (nonce).';
-elseif ($err === 'exists') $msg = 'Já existe uma conta com este e-mail. Inicie sessão.';
-?>
-<?php if ($msg): ?>
-  <div class="orbitur-alert orbitur-alert-error"><?php echo esc_html($msg); ?></div>
-<?php endif; ?>
-<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="orbitur-login-form">
-  <?php wp_nonce_field('orbitur_login_action','orbitur_login_nonce'); ?>
-  <input type="hidden" name="action" value="orbitur_login_submit">
-  <p><label>Email<br><input type="email" name="email" required></label></p>
-  <p><label>Palavra-passe<br><input type="password" name="password" required></label></p>
-  <p><button type="submit" class="orbitur-btn">Entrar</button></p>
-</form>
+<?php if (!defined('ABSPATH')) exit; ?>
+<div class="orbitur-login-form" style="max-width:700px;margin:0 auto;">
+  <?php if (!empty($_GET['err'])): ?>
+    <div style="color:#c00">Erro: <?php echo esc_html($_GET['err']); ?></div>
+  <?php endif; ?>
+  <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+    <input type="hidden" name="action" value="orbitur_login">
+    <p><label>E-mail<br><input type="email" name="email" required style="width:100%"></label></p>
+    <p><label>Palavra-Passe<br><input type="password" name="password" required style="width:100%"></label></p>
+    <p><button type="submit">LOGIN</button> &nbsp; <a href="<?php echo esc_url(site_url('/area-cliente/registo-de-conta')); ?>">Registar</a></p>
+  </form>
+</div>
