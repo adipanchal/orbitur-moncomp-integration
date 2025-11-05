@@ -2,55 +2,51 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Parse booking XML into an array of items (namespace-agnostic)
+ * Parse the getBookingList SOAP raw XML and return normalized array.
  */
-function orbitur_parse_booking_xml_string($xml_string) {
-    if (empty($xml_string)) return [];
-
-    $doc = new DOMDocument();
+function orbitur_parse_booking_xml_string($xmlString) {
+    if (empty($xmlString)) return [];
     libxml_use_internal_errors(true);
-    if (! $doc->loadXML($xml_string)) {
-        libxml_clear_errors();
-        return new WP_Error('xml_parse_error','Failed to parse XML');
-    }
-
-    $xpath = new DOMXPath($doc);
-    $nodes = $xpath->query("//*[local-name() = 'item']");
-
-    $results = [];
-    foreach ($nodes as $node) {
-        $item = [];
-        foreach ($node->childNodes as $child) {
-            if ($child->nodeType !== XML_ELEMENT_NODE) continue;
-            $key = $child->localName;
-            $val = trim($child->textContent);
-            // handle nested item lists (simple)
-            if ($child->hasChildNodes()) {
-                $hasElement=false;
-                foreach ($child->childNodes as $c2) if ($c2->nodeType===XML_ELEMENT_NODE) { $hasElement=true; break; }
-                if ($hasElement) {
-                    $sub = [];
-                    foreach ($child->childNodes as $c2) {
-                        if ($c2->nodeType!==XML_ELEMENT_NODE) continue;
-                        $sub[$c2->localName] = trim($c2->textContent);
-                    }
-                    $item[$key] = $sub;
-                    continue;
-                }
+    $sx = @simplexml_load_string($xmlString);
+    if (!$sx) return [];
+    $items = $sx->xpath('//result//list//item') ?: $sx->xpath('//booking') ?: [];
+    $out = [];
+    foreach ($items as $it) {
+        $get = function($k) use ($it){ return isset($it->{$k}) ? trim((string)$it->{$k}) : ''; };
+        $begin = $get('begin'); $end = $get('end');
+        $begin_date = $begin ? date('Y-m-d', strtotime($begin)) : '';
+        $end_date   = $end ? date('Y-m-d', strtotime($end)) : '';
+        $supps = [];
+        if (isset($it->supplements->item)) {
+            foreach ($it->supplements->item as $s) {
+                $supps[] = ['name'=> (string)$s->name, 'quantity' => (string)$s->quantity];
             }
-            $item[$key] = $val;
         }
-        $results[] = $item;
+        $out[] = [
+            'id' => $get('idOrder') ?: $get('orderNumber'),
+            'site' => $get('site'),
+            'begin' => $begin_date,
+            'end' => $end_date,
+            'lodging' => $get('lodging'),
+            'nbPers' => $get('nbPers'),
+            'price' => $get('priceCustomer') ?: $get('price'),
+            'status' => $get('status'),
+            'situation' => $get('situation'),
+            'url' => html_entity_decode($get('url')),
+            'idSite' => $get('idSite'),
+            'supplements' => $supps,
+            'raw' => $it
+        ];
     }
-    return $results;
+    return $out;
 }
 
-function orbitur_split_bookings_list($parsed_results) {
-    $upcoming = []; $past = [];
-    $now = time();
-    foreach ($parsed_results as $r) {
-        $begin = isset($r['begin']) ? strtotime($r['begin']) : 0;
-        if ($begin >= $now) $upcoming[] = $r; else $past[] = $r;
+function orbitur_split_bookings_list($bookings) {
+    $today = new DateTime('today');
+    $upcoming = $past = [];
+    foreach ($bookings as $b) {
+        $end = $b['end'] ? new DateTime($b['end']) : null;
+        if ($end && $end < $today) $past[] = $b; else $upcoming[] = $b;
     }
     return ['upcoming'=>$upcoming,'past'=>$past];
 }
