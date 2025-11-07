@@ -3,128 +3,124 @@
  * Plugin Name: Orbitur MonCompte Integration
  * Plugin URI: https://github.com/adipanchal/orbitur-moncomp-integration/
  * Description: Integrates WordPress with Orbitur MonCompte (SOAP) and WebCamp widgets. Login/Register + bookings skeleton.
- * Version: 1.0
+ * Version: 1.0 Beta
  * Author: Blendd
  */
 
-if (!defined('ABSPATH')) {
-    exit;
-}
-define('ORBITUR_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('ORBITUR_PLUGIN_URL', plugin_dir_url(__FILE__));
-// force include shortcodes early (helps anonymous rendering)
-$shortcodes_file = ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
-if ( file_exists( $shortcodes_file ) ) {
-    require_once $shortcodes_file;
-} else {
-    error_log('Orbitur: shortcodes.php missing.');
-}
+if (!defined('ABSPATH')) exit;
 
-/**
- * Safe logger - fall back to error_log if plugin logger missing
- */
-function orbitur_main_log($msg, $context = null) {
-    // plugin logger file
-    $file = ORBITUR_PLUGIN_DIR . 'orbitur.log';
-    $txt = '[' . date('Y-m-d H:i:s') . '] ' . $msg;
-    if (!empty($context)) $txt .= ' ' . print_r($context, true);
-    $txt .= PHP_EOL;
-    @file_put_contents($file, $txt, FILE_APPEND | LOCK_EX);
+// ---------- Updater (GitHub) - safe include ----------
+add_action('plugins_loaded', function() {
+    // avoid double-init
+    if ( defined('ORBITUR_UPDATER_LOADED') ) return;
+    define('ORBITUR_UPDATER_LOADED', true);
 
-    // WP error log too
-    if ( defined('WP_DEBUG') && WP_DEBUG ) {
-        error_log('[Orbitur] ' . $msg . (is_array($context) ? ' ' . print_r($context, true) : ''));
-    }
-}
+    // Try composer autoload first, then manual include
+    $autoloader = __DIR__ . '/vendor/autoload.php';
+    $manual_loader = __DIR__ . '/updater/plugin-update-checker.php';
 
-/**
- * Updater — try to load composer autoload first, fallback to bundled file,
- * but do not fatal if not present.
- */
-try {
-    $autoloader = ORBITUR_PLUGIN_DIR . 'vendor/autoload.php';
-    $manual_loader = ORBITUR_PLUGIN_DIR . 'updater/plugin-update-checker.php';
-    if ( file_exists( $autoloader ) ) {
-        require_once $autoloader;
-        orbitur_main_log('Loaded updater from vendor/autoload.php');
-    } elseif ( file_exists( $manual_loader ) ) {
-        require_once $manual_loader;
-        orbitur_main_log('Loaded updater from updater/plugin-update-checker.php');
-    } else {
-        orbitur_main_log('Updater not found; continuing without auto-updates.');
-    }
-
-    // Try to initialize update checker only if factory class exists
-    if ( class_exists( 'YahnisElsts\PluginUpdateChecker\v5\PucFactory' ) ) {
-        try {
-            $updateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
-                'https://github.com/adipanchal/orbitur-moncomp-integration',
-                __FILE__,
-                'orbitur-moncomp-integration'
-            );
-            $updateChecker->setBranch('main');
-            if ( defined('GITHUB_UPDATER_TOKEN') && ! empty( GITHUB_UPDATER_TOKEN ) ) {
-                $updateChecker->setAuthentication( GITHUB_UPDATER_TOKEN );
-            }
-            orbitur_main_log('Update checker (v5) initialized.');
-        } catch (Throwable $e) {
-            orbitur_main_log('Update checker init error: ' . $e->getMessage());
+    try {
+        if ( file_exists( $autoloader ) ) {
+            require_once $autoloader;
+            orbitur_log('Loaded updater via vendor/autoload.php');
+        } elseif ( file_exists( $manual_loader ) ) {
+            require_once $manual_loader;
+            orbitur_log('Loaded updater via updater/plugin-update-checker.php');
+        } else {
+            orbitur_log('Updater not found: vendor/autoload.php or updater/plugin-update-checker.php missing.');
+            return;
         }
-    } elseif ( class_exists('Puc_v4_Factory') ) {
-        try {
+
+        // v5 namespaced factory?
+        if ( class_exists('YahnisElsts\PluginUpdateChecker\v5\PucFactory') ) {
+            $factory = 'YahnisElsts\\PluginUpdateChecker\\v5\\PucFactory';
+            $updateChecker = $factory::buildUpdateChecker(
+                'https://github.com/adipanchal/orbitur-moncomp-integration', // repo URL
+                __FILE__, // full path to main plugin file
+                'orbitur-moncomp-integration' // plugin slug (folder name)
+            );
+            orbitur_log('Updater: initialized PucFactory v5.');
+        }
+        // fallback for older library (v4)
+        elseif ( class_exists('Puc_v4_Factory') ) {
             $updateChecker = Puc_v4_Factory::buildUpdateChecker(
                 'https://github.com/adipanchal/orbitur-moncomp-integration',
                 __FILE__,
                 'orbitur-moncomp-integration'
             );
-            $updateChecker->setBranch('main');
-            orbitur_main_log('Update checker (v4) initialized.');
-        } catch (Throwable $e) {
-            orbitur_main_log('Update checker v4 init error: ' . $e->getMessage());
+            orbitur_log('Updater: initialized Puc_v4_Factory.');
+        } else {
+            orbitur_log('Updater: no PucFactory class available after include.');
+            return;
         }
-    } else {
-        // no update checker classes present — not a fatal issue
-    }
-} catch (Throwable $e) {
-    orbitur_main_log('Updater require exception: ' . $e->getMessage());
-}
 
-/**
- * Load core includes safely
- */
-$includes = [
-    'inc/logger.php',
-    'inc/api.php',
-    'inc/parser.php',
-    'inc/user-provision.php',
-    'inc/shortcodes.php',
-    'inc/ajax-handlers.php',
-];
+        // set branch (change to 'main' or other branch/tag)
+        if ( isset($updateChecker) && is_object($updateChecker) ) {
+            if ( method_exists($updateChecker, 'setBranch') ) {
+                $updateChecker->setBranch('main');
+            }
+            // If repo is private, set a GitHub token constant in wp-config.php:
+            // define('ORBITUR_GITHUB_TOKEN','ghp_...');
+            if ( defined('ORBITUR_GITHUB_TOKEN') && ! empty( ORBITUR_GITHUB_TOKEN ) ) {
+                if ( method_exists($updateChecker, 'setAuthentication') ) {
+                    $updateChecker->setAuthentication( ORBITUR_GITHUB_TOKEN );
+                    orbitur_log('Updater: authentication token set.');
+                }
+            }
 
-foreach ($includes as $inc) {
-    $path = ORBITUR_PLUGIN_DIR . $inc;
-    if ( file_exists($path) ) {
-        try {
-            require_once $path;
-            orbitur_main_log("Included: {$inc}");
-        } catch (Throwable $e) {
-            orbitur_main_log("Error including {$inc}: " . $e->getMessage());
+            orbitur_log('Updater: configured for repo https://github.com/adipanchal/orbitur-moncomp-integration (branch main).');
         }
-    } else {
-        orbitur_main_log("Missing include (skipped): {$inc}");
-    }
-}
 
-/**
- * Activation / Deactivation hooks — safe defaults
- */
+    } catch (Throwable $e) {
+        orbitur_log('Updater exception: ' . $e->getMessage());
+        // do not throw — updater failure should not kill plugin
+    }
+}, 20);
+// ---------- end Updater ----------
+
+// constants
+define('ORBITUR_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('ORBITUR_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('ORBITUR_LOG', WP_CONTENT_DIR . '/uploads/orbitur.log');
+
+// autoload includes
+require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
+
+// activation
 register_activation_hook(__FILE__, function(){
-    if (! get_option('orbitur_moncomp_endpoint') ) {
+    if (!get_option('orbitur_moncomp_endpoint')) {
         update_option('orbitur_moncomp_endpoint', '');
     }
-    orbitur_main_log('Plugin activated.');
 });
 
-register_deactivation_hook(__FILE__, function(){
-    orbitur_main_log('Plugin deactivated.');
+// add small admin settings link
+add_action('admin_menu', function(){
+    add_options_page('Orbitur MonCompte', 'Orbitur MonCompte', 'manage_options', 'orbitur-moncomp', function(){
+        if (!current_user_can('manage_options')) return;
+        if ($_POST && check_admin_referer('orbitur_settings')) {
+            update_option('orbitur_moncomp_endpoint', sanitize_text_field($_POST['endpoint'] ?? ''));
+            update_option('orbitur_moncomp_api_key', sanitize_text_field($_POST['api_key'] ?? ''));
+            echo '<div class="updated"><p>Saved.</p></div>';
+        }
+        $endpoint = esc_attr(get_option('orbitur_moncomp_endpoint', ''));
+        $api_key  = esc_attr(get_option('orbitur_moncomp_api_key', ''));
+        ?>
+        <div class="wrap">
+          <h1>Orbitur MonCompte settings</h1>
+          <form method="post">
+            <?php wp_nonce_field('orbitur_settings'); ?>
+            <table class="form-table">
+              <tr><th>MonCompte WSDL / endpoint</th>
+                <td><input name="endpoint" value="<?php echo $endpoint; ?>" class="regular-text" placeholder="https://.../MLC_MonCompteServices?wsdl"></td></tr>
+              <tr><th>Optional API key / X-API-KEY</th>
+                <td><input name="api_key" value="<?php echo $api_key; ?>" class="regular-text"></td></tr>
+            </table>
+            <p><button class="button button-primary">Save</button></p>
+          </form>
+        </div>
+        <?php
+    });
 });

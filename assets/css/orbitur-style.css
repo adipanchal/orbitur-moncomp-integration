@@ -1,0 +1,6 @@
+.orbitur-login-wrap, .orbitur-register-wrap { max-width:760px; margin:20px auto; }
+.orbitur-login-wrap input, .orbitur-register-wrap input { width:100%; padding:10px; margin:6px 0; box-sizing:border-box; }
+.orbitur-register-wrap .row{ display:flex; gap:12px; }
+.orbitur-register-wrap .row > div{ flex:1; }
+.orbitur-login-result .error, .orbitur-register-result .error{ color:#b00020; }
+.orbitur-login-result .ok, .orbitur-register-result .ok{ color: #0a7; }
