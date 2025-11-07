@@ -1,47 +1,28 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
-
 /**
- * Config helper - prefer constants, fallback to options
+ * Get plugin config (prefer constants, fallback to options)
  */
 function orbitur_get_config() {
     $endpoint = defined('ORBITUR_MONCOMP_ENDPOINT') ? ORBITUR_MONCOMP_ENDPOINT : get_option('orbitur_moncomp_endpoint', '');
-    $admin_email = defined('ORBITUR_MONCOMP_ADMIN_EMAIL') ? ORBITUR_MONCOMP_ADMIN_EMAIL : get_option('orbitur_moncomp_email','');
-    $admin_pw = defined('ORBITUR_MONCOMP_ADMIN_PW') ? ORBITUR_MONCOMP_ADMIN_PW : get_option('orbitur_moncomp_password','');
-
     return [
-        'endpoint' => rtrim($endpoint,'/'),
-        'admin_email' => $admin_email,
-        'admin_pw' => $admin_pw,
+        'endpoint' => untrailingslashit(trim($endpoint)),
     ];
 }
 
 /**
- * SOAP call wrapper with logging and optional stub mode
+ * Generic SOAP call via cURL
+ * @param string $action SOAP action name (getBookingList, login, etc)
+ * @param string $xml_body XML content that goes inside the <SOAP-ENV:Body>
+ * @return string|WP_Error raw response or error
  */
 function orbitur_call_soap($action, $xml_body, $timeout = 30) {
     $cfg = orbitur_get_config();
-
-    // STUB MODE: useful for local development
-    if ( defined('ORBITUR_MONCOMP_STUB') && ORBITUR_MONCOMP_STUB ) {
-        orbitur_log("STUB SOAP action={$action}");
-        if ($action === 'login') {
-            return '<?xml version="1.0"?><SOAP-ENV:Envelope><SOAP-ENV:Body><ns1:loginResponse xmlns:ns1="http://webservices.multicamp.fr"><result><error>0</error><idSession>stub-session-123</idSession></result></ns1:loginResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>';
-        }
-        if ($action === 'getBookingList') {
-            return '<?xml version="1.0"?><SOAP-ENV:Envelope><SOAP-ENV:Body><ns1:getBookingListResponse xmlns:ns1="http://webservices.multicamp.fr"><result><error>0</error><list><item><idOrder>U-STUB-1</idOrder><site>STUB_SITE</site><begin>2025-12-01T00:00:00+00:00</begin><end>2025-12-02T00:00:00+00:00</end><url>https://example.com/booking</url></item></list></result></ns1:getBookingListResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>';
-        }
-        return '<?xml version="1.0"?><SOAP-ENV:Envelope><SOAP-ENV:Body><result><error>0</error></result></SOAP-ENV:Body></SOAP-ENV:Envelope>';
-    }
-
-    if (empty($cfg['endpoint'])) {
-        orbitur_log('No endpoint configured.');
-        return new WP_Error('no_endpoint','No MonCompte endpoint configured.');
-    }
+    if (empty($cfg['endpoint'])) return new WP_Error('no_endpoint', 'MonCompte endpoint not configured.');
 
     $endpoint = $cfg['endpoint'];
+
     $envelope = '<?xml version="1.0" encoding="UTF-8"?>'
         . '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://webservices.multicamp.fr">'
         . '<SOAP-ENV:Body>'
@@ -66,52 +47,24 @@ function orbitur_call_soap($action, $xml_body, $timeout = 30) {
     $info = curl_getinfo($ch);
     curl_close($ch);
 
-    orbitur_log("SOAP action={$action} http_code=" . ($info['http_code'] ?? 'n/a') . " curl_err=" . ($err ? $err : 'none'));
-    $snippet = $res ? substr($res,0,3000) : 'NO_RESPONSE';
-    orbitur_log("SOAP response snippet: " . $snippet);
-
     if ($res === false) {
         return new WP_Error('curl_error', $err, $info);
     }
-    if (!empty($info['http_code']) && $info['http_code'] >= 400) {
-        return new WP_Error('http_error','HTTP '.$info['http_code'], ['response'=>substr($res,0,2000),'info'=>$info]);
+
+    if (isset($info['http_code']) && $info['http_code'] >= 400) {
+        return new WP_Error('http_error', 'HTTP '.$info['http_code'], ['response'=>substr($res,0,4000),'info'=>$info]);
     }
 
     return $res;
 }
 
 /**
- * Login helper
- */
-function orbitur_login_moncomp($email, $pw, $app = 'siteMarchand') {
-    $xml_body = '<ns1:login>'
-              . '<RqLogin>'
-              . '<id>'.esc_html($email).'</id>'
-              . '<pw>'.esc_html($pw).'</pw>'
-              . '<app>'.esc_html($app).'</app>'
-              . '</RqLogin>'
-              . '</ns1:login>';
-
-    $res = orbitur_call_soap('login', $xml_body);
-    if (is_wp_error($res)) return $res;
-
-    if (preg_match('/<idSession>([^<]+)<\\/idSession>/', $res, $m)) {
-        return trim($m[1]);
-    }
-
-    if (preg_match('/<messError[^>]*>(.*?)<\\/messError>/s', $res, $me)) {
-        $msg = trim(strip_tags($me[1]));
-        return new WP_Error('login_failed', $msg, ['raw'=>$res]);
-    }
-
-    return new WP_Error('no_session','No idSession returned', ['raw'=>$res]);
-}
-
-/**
- * Get bookings raw xml for idSession
+ * Fetch raw booking list XML string for a given idSession
+ * @param string $idSession
+ * @return string|WP_Error
  */
 function orbitur_getBookingList_raw($idSession) {
-    if (empty($idSession)) return new WP_Error('no_session','No idSession provided.');
+    if (empty($idSession)) return new WP_Error('no_session', 'No MonCompte session provided.');
     $xml_body = '<ns1:getBookingList>'
               . '<RqGetBookingList>'
               . '<idSession>'.esc_html($idSession).'</idSession>'
@@ -121,4 +74,40 @@ function orbitur_getBookingList_raw($idSession) {
               . '</RqGetBookingList>'
               . '</ns1:getBookingList>';
     return orbitur_call_soap('getBookingList', $xml_body);
+}
+
+/**
+ * Login to MonCompte (returns idSession or WP_Error)
+ * @param string $email
+ * @param string $pw
+ * @param string $app (optional)
+ * @return string|WP_Error
+ */
+function orbitur_login_moncomp($email, $pw, $app = 'siteMarchand') {
+    if (empty($email) || empty($pw)) return new WP_Error('missing_credentials', 'Missing credentials');
+    $xml_body = '<ns1:login>'
+              . '<RqLogin>'
+              . '<id>'.esc_html($email).'</id>'
+              . '<pw>'.esc_html($pw).'</pw>'
+              . '<app>'.esc_html($app).'</app>'
+              . '</RqLogin>'
+              . '</ns1:login>';
+    $res = orbitur_call_soap('login', $xml_body);
+    if (is_wp_error($res)) return $res;
+
+    // try to extract idSession
+    if (preg_match('/<idSession>([^<]+)<\\/idSession>/', $res, $m)) {
+        return trim($m[1]);
+    }
+
+    // Attempt to find error message
+    if (preg_match('/<error>(\d+)<\\/error>/', $res, $e)) {
+        $errcode = $e[1];
+        if (preg_match('/<messError([^>]*)>(.*?)<\\/messError>/s', $res, $me)) {
+            $msg = strip_tags($me[2]);
+            return new WP_Error('moncomp_login_error', $msg, ['raw' => $res, 'code'=>$errcode]);
+        }
+    }
+
+    return new WP_Error('no_session_returned', 'No idSession returned', ['raw'=>$res]);
 }

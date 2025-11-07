@@ -1,95 +1,116 @@
 <?php
 if (!defined('ABSPATH')) exit;
-require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
 
-// debug
-orbitur_log('shortcodes.php loaded - is_user_logged_in=' . (is_user_logged_in() ? '1' : '0'));
+/**
+ * Shortcodes registration for Orbitur plugin.
+ * IMPORTANT: do not call WP functions at file scope
+ */
 
-// Register shortcodes on init early
-add_action('init', function(){
-    orbitur_log('registering shortcodes on init - is_user_logged_in=' . (is_user_logged_in() ? '1' : '0'));
+add_action('plugins_loaded', 'orbitur_register_shortcodes', 5);
+add_action('init', 'orbitur_register_shortcodes', 5); 
+add_filter('the_content', function($content){
+    if (is_page(array('area-cliente','registo-de-conta','bem-vindo'))) {
+        $content = do_shortcode($content);
+    }
+    return $content;
+}, 12);
+function orbitur_register_shortcodes() {
+    // avoid duplicate registration
+    static $registered = false;
+    if ($registered) return;
+    $registered = true;
 
-    add_shortcode('orbitur_login_form', function($atts){
-        orbitur_log('orbitur_login_form executed - is_user_logged_in=' . (is_user_logged_in() ? '1' : '0'));
-        ob_start();
-        include ORBITUR_PLUGIN_DIR . 'templates/tpl-login-form.php';
-        return ob_get_clean();
-    });
-
-    add_shortcode('orbitur_register_form', function($atts){
-        orbitur_log('orbitur_register_form executed - is_user_logged_in=' . (is_user_logged_in() ? '1' : '0'));
-        ob_start();
-        include ORBITUR_PLUGIN_DIR . 'templates/tpl-register-form.php';
-        return ob_get_clean();
-    });
-
-    add_shortcode('orbitur_area_main', function($atts){
-        if (!is_user_logged_in()) {
-            wp_safe_redirect(site_url('/area-cliente/'));
-            exit;
+    // Helper to safely load template from plugin templates folder
+    $load_template = function($name) {
+        $path = ORBITUR_PLUGIN_DIR . 'templates/' . $name;
+        if (file_exists($path)) {
+            ob_start();
+            include $path;
+            return ob_get_clean();
         }
-        ob_start();
-        include ORBITUR_PLUGIN_DIR . 'templates/tpl-area-main.php';
-        return ob_get_clean();
+        return '<!-- missing template: '.esc_html($name).' -->';
+    };
+
+    // LOGIN shortcode
+    add_shortcode('orbitur_login_form', function($atts = []) use ($load_template) {
+        // runtime check is fine
+        if (function_exists('is_user_logged_in') && is_user_logged_in()) {
+            return '<div class="orbitur-already-logged">Já ligado — <a href="'.esc_url(site_url('/area-cliente/bem-vindo')).'">Ir para Área Cliente</a></div>';
+        }
+        return $load_template('tpl-login-form.php');
     });
 
-    add_shortcode('orbitur_bookings', function($atts){
-        orbitur_log('orbitur_bookings executed - is_user_logged_in=' . (is_user_logged_in() ? '1' : '0'));
-        if (!is_user_logged_in()) return '<p>Faça login para ver as suas reservas.</p>';
+    // REGISTER shortcode
+    add_shortcode('orbitur_register_form', function($atts = []) use ($load_template) {
+        if (function_exists('is_user_logged_in') && is_user_logged_in()) {
+            return '<div class="orbitur-already-logged">Já ligado — <a href="'.esc_url(site_url('/area-cliente/bem-vindo')).'">Ir para Área Cliente</a></div>';
+        }
+        return $load_template('tpl-register-form.php');
+    });
+
+    // AREA main
+    add_shortcode('orbitur_area_main', function($atts = []) use ($load_template) {
+        if (!function_exists('is_user_logged_in') || !is_user_logged_in()) {
+            // don't redirect during rendering; show link
+            return '<div class="orbitur-need-login">Por favor <a href="'.esc_url(site_url('/area-cliente/')).'">inicie sessão</a> para aceder à Área Cliente.</div>';
+        }
+        return $load_template('tpl-area-main.php');
+    });
+
+    // Bookings list shortcode (simple safe implementation)
+    add_shortcode('orbitur_bookings', function($atts = []) {
+        if (!function_exists('is_user_logged_in') || !is_user_logged_in()) {
+            return '<p>Faça login para ver as suas reservas.</p>';
+        }
+
         $uid = get_current_user_id();
         $tkey = 'orbitur_bookings_'.$uid;
         if (false !== ($cached = get_transient($tkey))) {
             $lists = $cached;
         } else {
-            $idSession = get_user_meta($uid,'moncomp_idSession',true);
+            // Ensure helpers exist; orbitur_getBookingList_raw must be defined in inc/api.php
+            if (!function_exists('orbitur_getBookingList_raw') || !function_exists('orbitur_parse_booking_xml_string')) {
+                return '<p>Serviço de reservas indisponível.</p>';
+            }
+            $idSession = get_user_meta($uid, 'moncomp_idSession', true);
             if (empty($idSession)) return '<p>Sem sessão MonCompte. Por favor inicie sessão.</p>';
+
             $raw = orbitur_getBookingList_raw($idSession);
             if (is_wp_error($raw)) return '<p>Erro ao obter reservas: '.esc_html($raw->get_error_message()).'</p>';
+
             $parsed = orbitur_parse_booking_xml_string($raw);
             if (is_wp_error($parsed)) return '<p>Erro ao interpretar reservas.</p>';
-            $lists = orbitur_split_bookings_list($parsed);
-            set_transient($tkey,$lists,10*MINUTE_IN_SECONDS);
+
+            $lists = function_exists('orbitur_split_bookings_list') ? orbitur_split_bookings_list($parsed) : ['upcoming'=>[], 'past'=>[]];
+            set_transient($tkey, $lists, 10*MINUTE_IN_SECONDS);
         }
 
         ob_start();
-        ?>
-        <div class="orbitur-bookings">
-          <h3>Próximas</h3>
-          <?php if (empty($lists['upcoming'])): ?>
-            <p>Não há estadias próximas.</p>
-          <?php else: ?>
-            <ul>
-            <?php foreach($lists['upcoming'] as $b): ?>
-              <li>
-                <strong><?php echo esc_html($b['site'] ?? ''); ?></strong>
-                — <?php echo esc_html(date_i18n('d/m/Y', strtotime($b['begin'] ?? ''))); ?>
-                <?php if (!empty($b['url'])): ?>
-                  — <a href="<?php echo esc_url($b['url']); ?>" target="_blank" rel="noopener">Gerir</a>
-                <?php endif; ?>
-              </li>
-            <?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
-
-          <h3>Anteriores</h3>
-          <?php if (empty($lists['past'])): ?>
-            <p>Não há estadias anteriores.</p>
-          <?php else: ?>
-            <ul>
-            <?php foreach($lists['past'] as $b): ?>
-              <li>
-                <strong><?php echo esc_html($b['site'] ?? ''); ?></strong>
-                — <?php echo esc_html(date_i18n('d/m/Y', strtotime($b['begin'] ?? ''))); ?>
-                <?php if (!empty($b['url'])): ?>
-                  — <a href="<?php echo esc_url($b['url']); ?>" target="_blank" rel="noopener">Detalhes</a>
-                <?php endif; ?>
-              </li>
-            <?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
-        </div>
-        <?php
+        echo '<div class="orbitur-bookings"><h3>Próximas</h3>';
+        if (empty($lists['upcoming'])) {
+            echo '<p>Não há estadias próximas.</p>';
+        } else {
+            echo '<ul>';
+            foreach($lists['upcoming'] as $b) {
+                echo '<li><strong>'.esc_html($b['site'] ?? '').'</strong> — '.esc_html(date_i18n('d/m/Y', strtotime($b['begin'] ?? ''))).
+                     (!empty($b['url']) ? ' — <a href="'.esc_url($b['url']).'" target="_blank" rel="noopener">Gerir</a>' : '').
+                     '</li>';
+            }
+            echo '</ul>';
+        }
+        echo '<h3>Anteriores</h3>';
+        if (empty($lists['past'])) {
+            echo '<p>Não há estadias anteriores.</p>';
+        } else {
+            echo '<ul>';
+            foreach($lists['past'] as $b) {
+                echo '<li><strong>'.esc_html($b['site'] ?? '').'</strong> — '.esc_html(date_i18n('d/m/Y', strtotime($b['begin'] ?? ''))).
+                     (!empty($b['url']) ? ' — <a href="'.esc_url($b['url']).'" target="_blank" rel="noopener">Detalhes</a>' : '').
+                     '</li>';
+            }
+            echo '</ul>';
+        }
+        echo '</div>';
         return ob_get_clean();
     });
-
-}, 1);
+}
