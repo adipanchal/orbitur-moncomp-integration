@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 // ---------- Updater (GitHub) - safe include ----------
-add_action('plugins_loaded', function() {
+add_action('plugins_loaded', function(): void {
     // avoid double-init
     if ( defined('ORBITUR_UPDATER_LOADED') ) return;
     define('ORBITUR_UPDATER_LOADED', true);
