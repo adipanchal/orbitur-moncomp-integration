@@ -1,9 +1,9 @@
 <?php
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH'))
+    exit;
 
-add_action('wp_footer', function(){
-    // Only include on public pages
-    $camping = 'orbitur'; // optionally read from option
+add_action('wp_footer', function () {
+    $camping = 'orbitur';
     $lang = 'pt';
     echo <<<HTML
 <script>

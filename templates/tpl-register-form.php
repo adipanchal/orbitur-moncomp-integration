@@ -2,12 +2,11 @@
   exit; ?>
 <div class="orbitur-register-wrap">
   <form id="orbitur-register-form" class="auth-form auth-form--register">
-    <!-- Form Fields Container -->
     <div class="auth-form__fields">
       <!-- Name & Surname Row -->
       <div class="form-row">
         <div class="form-group">
-          <label class="form-group__label">NOME*</label>
+          <label class="form-group__label">NAME*</label>
           <input type="text" name="first_name" class="form-group__input" placeholder="Nome" required />
         </div>
         <div class="form-group">
