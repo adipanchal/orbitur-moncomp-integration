@@ -3,7 +3,7 @@
  * Plugin Name: Orbitur MonCompte Integration
  * Plugin URI: https://github.com/adipanchal/orbitur-moncomp-integration/
  * Description: Integrates WordPress with Orbitur MonCompte (SOAP) and WebCamp widgets. Login/Register + bookings skeleton.
- * Version: 1.1 Beta
+ * Version: 1.2 Beta
  * Author: Blendd
  */
 
@@ -85,11 +85,35 @@ define('ORBITUR_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ORBITUR_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ORBITUR_LOG', WP_CONTENT_DIR . '/uploads/orbitur.log');
 
-// autoload includes
-require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
-require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
-require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
-require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
+/**
+ * Safe boot: delay including files until WP is fully loaded.
+ * This avoids "undefined function is_user_logged_in()" during include time.
+ */
+add_action('plugins_loaded', function () {
+    // logger must be available first
+    require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
+
+    require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
+    require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
+    require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
+    require_once ORBITUR_PLUGIN_DIR . 'inc/parser.php';
+    require_once ORBITUR_PLUGIN_DIR . 'inc/user-provision.php';
+
+    // enqueue frontend assets
+    add_action('wp_enqueue_scripts', function () {
+        $css = ORBITUR_PLUGIN_DIR . 'assets/css/orbitur-style.css';
+        if (file_exists($css)) {
+            wp_enqueue_style(
+                'orbitur-style',
+                ORBITUR_PLUGIN_URL . 'assets/css/orbitur-style.css',
+                [],
+                filemtime($css)
+            );
+        }
+    }, 20);
+
+    orbitur_log('[Orbitur] plugin files included on plugins_loaded');
+}, 20);
 
 // activation
 register_activation_hook(__FILE__, function () {

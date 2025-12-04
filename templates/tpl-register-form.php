@@ -6,7 +6,7 @@
       <!-- Name & Surname Row -->
       <div class="form-row">
         <div class="form-group">
-          <label class="form-group__label">NAME*</label>
+          <label class="form-group__label">NOME*</label>
           <input type="text" name="first_name" class="form-group__input" placeholder="Nome" required />
         </div>
         <div class="form-group">
