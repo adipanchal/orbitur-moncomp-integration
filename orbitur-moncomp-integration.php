@@ -84,36 +84,31 @@ add_action('plugins_loaded', function (): void {
 define('ORBITUR_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ORBITUR_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ORBITUR_LOG', WP_CONTENT_DIR . '/uploads/orbitur.log');
-
 /**
- * Safe boot: delay including files until WP is fully loaded.
- * This avoids "undefined function is_user_logged_in()" during include time.
+ * Enqueue Orbitur CSS + JS Only on Frontend Pages Needed
  */
-add_action('plugins_loaded', function () {
-    // logger must be available first
-    require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
+add_action('wp_enqueue_scripts', function () {
+    if (!is_page(['area-cliente', 'registo-de-conta', 'bem-vindo'])) {
+        return; // do not load on other pages
+    }
 
-    require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
-    require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
-    require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
-    require_once ORBITUR_PLUGIN_DIR . 'inc/parser.php';
-    require_once ORBITUR_PLUGIN_DIR . 'inc/user-provision.php';
+    // CSS
+    $css = ORBITUR_PLUGIN_DIR . 'assets/css/orbitur-style.css';
+    if (file_exists($css)) {
+        wp_enqueue_style('orbitur-style', ORBITUR_PLUGIN_URL . 'assets/css/orbitur-style.css', [], filemtime($css));
+    }
 
-    // enqueue frontend assets
-    add_action('wp_enqueue_scripts', function () {
-        $css = ORBITUR_PLUGIN_DIR . 'assets/css/orbitur-style.css';
-        if (file_exists($css)) {
-            wp_enqueue_style(
-                'orbitur-style',
-                ORBITUR_PLUGIN_URL . 'assets/css/orbitur-style.css',
-                [],
-                filemtime($css)
-            );
-        }
-    }, 20);
-
-    orbitur_log('[Orbitur] plugin files included on plugins_loaded');
-}, 20);
+    // JS
+    $js = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-forms.js';
+    if (file_exists($js)) {
+        wp_enqueue_script('orbitur-forms', ORBITUR_PLUGIN_URL . 'assets/js/orbitur-forms.js', ['jquery'], filemtime($js), true);
+    }
+});
+// autoload includes
+require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
+require_once ORBITUR_PLUGIN_DIR . 'inc/api.php';
 
 // activation
 register_activation_hook(__FILE__, function () {
