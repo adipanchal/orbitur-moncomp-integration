@@ -1,35 +1,46 @@
-jQuery(function($){
-  $(document).on('submit', '#orbitur-login-form', function(e){
-    e.preventDefault();
-    var form = $(this);
-    var data = { action: 'orbitur_login', nonce: orbitur_ajax.nonce };
-    form.find(':input').each(function(){ data[this.name]= $(this).val(); });
-    form.find('button').prop('disabled', true);
-    $.post(orbitur_ajax.ajax_url, data, function(resp){
-      form.find('button').prop('disabled', false);
-      if (resp.success) {
-        $('.orbitur-login-result').html('<div class="ok">Login bem sucedido. A redirecionar…</div>');
-        window.location = resp.data.redirect || window.location.href;
-      } else {
-        $('.orbitur-login-result').html('<div class="error">'+ (resp.data||'Erro') +'</div>');
-      }
-    }, 'json').fail(function(){ form.find('button').prop('disabled', false); $('.orbitur-login-result').html('<div class="error">Erro de ligação.</div>'); });
-  });
+(function ($) {
+  $(function () {
+    // Ajax login
+    $(document).on("submit", "#orbitur-login-form", function (e) {
+      // If form action points to admin-post.php, allow normal submit (server-side).
+      // To use AJAX, prevent default and send to admin-ajax.php.
+      e.preventDefault();
+      var $f = $(this);
+      var data = {
+        action: "orbitur_login_ajax",
+        nonce: orbitur_ajax ? orbitur_ajax.nonce : "",
+        email: $f.find('[name="email"]').val(),
+        pw: $f.find('[name="pw"]').val(),
+        remember: $f.find('[name="remember"]').is(":checked") ? 1 : 0,
+      };
+      $.post(orbitur_ajax.ajax_url, data, function (resp) {
+        if (resp && resp.success) {
+          window.location = orbitur_ajax.redirect || "/";
+        } else {
+          alert(resp && resp.data ? resp.data : "Login failed");
+        }
+      });
+    });
 
-  $(document).on('submit', '#orbitur-register-form', function(e){
-    e.preventDefault();
-    var form = $(this);
-    var data = { action: 'orbitur_register', nonce: orbitur_ajax.nonce };
-    form.find(':input').each(function(){ if(this.name) data[this.name]= $(this).val(); });
-    form.find('button').prop('disabled', true);
-    $.post(orbitur_ajax.ajax_url, data, function(resp){
-      form.find('button').prop('disabled', false);
-      if (resp.success) {
-        $('.orbitur-register-result').html('<div class="ok">Registo OK — a redirecionar…</div>');
-        window.location = resp.data.redirect || window.location.href;
-      } else {
-        $('.orbitur-register-result').html('<div class="error">'+ (resp.data||'Erro') +'</div>');
-      }
-    }, 'json').fail(function(){ form.find('button').prop('disabled', false); $('.orbitur-register-result').html('<div class="error">Erro de ligação.</div>'); });
+    // Ajax register
+    $(document).on("submit", "#orbitur-register-form", function (e) {
+      e.preventDefault();
+      var $f = $(this);
+      var formData = $f.serializeArray();
+      var data = {
+        action: "orbitur_register_ajax",
+        nonce: orbitur_ajax ? orbitur_ajax.nonce : "",
+      };
+      $.each(formData, function (i, kv) {
+        data[kv.name] = kv.value;
+      });
+      $.post(orbitur_ajax.ajax_url, data, function (resp) {
+        if (resp && resp.success) {
+          window.location = orbitur_ajax.redirect || "/";
+        } else {
+          alert(resp && resp.data ? resp.data : "Register failed");
+        }
+      });
+    });
   });
-});
+})(jQuery);

@@ -1,81 +1,104 @@
 <?php
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH'))
+    exit;
 
 /**
- * Parse booking XML string into PHP array (namespace-agnostic)
- * Returns array of items or WP_Error on parse failure
+ * Functions to parse booking XML / split upcoming/past
  */
-function orbitur_parse_booking_xml_string($xml_string) {
-    if (empty($xml_string)) return [];
 
-    $doc = new DOMDocument();
-    libxml_use_internal_errors(true);
-    if (! $doc->loadXML($xml_string)) {
-        $errs = libxml_get_errors();
-        libxml_clear_errors();
-        return new WP_Error('xml_parse_error', 'Failed to parse XML', $errs);
-    }
-    $xpath = new DOMXPath($doc);
-
-    // Find all nodes named 'item' regardless of namespace:
-    $nodes = $xpath->query("//*[local-name() = 'item']");
-
-    $results = [];
-    foreach ($nodes as $idx => $node) {
-        $item = [];
-        foreach ($node->childNodes as $child) {
-            if ($child->nodeType !== XML_ELEMENT_NODE) continue;
-            $key = $child->localName;
-            $val = trim($child->textContent);
-
-            // If this child contains element children (eg. supplements), extract them recursively
-            if ($child->hasChildNodes()) {
-                $hasElementChild = false;
-                foreach ($child->childNodes as $c2) {
-                    if ($c2->nodeType === XML_ELEMENT_NODE) { $hasElementChild = true; break; }
-                }
-                if ($hasElementChild) {
-                    $sub = [];
-                    foreach ($child->childNodes as $c2) {
-                        if ($c2->nodeType !== XML_ELEMENT_NODE) continue;
-                        if ($c2->localName === 'item') {
-                            $subItem = [];
-                            foreach ($c2->childNodes as $c3) {
-                                if ($c3->nodeType === XML_ELEMENT_NODE) {
-                                    $subItem[$c3->localName] = trim($c3->textContent);
-                                }
-                            }
-                            $sub[] = $subItem;
-                        } else {
-                            $sub[$c2->localName] = trim($c2->textContent);
-                        }
-                    }
-                    $item[$key] = $sub;
-                    continue;
-                }
-            }
-
-            $item[$key] = $val;
+if (!function_exists('orbitur_parse_booking_xml_string')) {
+    function orbitur_parse_booking_xml_string($xmlString)
+    {
+        if (empty($xmlString))
+            return new WP_Error('empty', 'Empty');
+        // try to extract any XML portion if $xmlString might be json-encoded (SoapClient returns object converted to json earlier)
+        if (strpos($xmlString, '{') === 0 || strpos($xmlString, '[') === 0) {
+            // likely json representation; try decode then re-encode to xml? fallback: return as array
+            $arr = json_decode($xmlString, true);
+            if (is_array($arr))
+                return $arr;
+            return new WP_Error('parse_failed', 'JSON decode failed');
         }
-        $results[] = $item;
-    }
 
-    return $results;
+        // sanitize namespace prefixes
+        $clean = preg_replace('/(<\/?)([a-z0-9\-\_]+):/i', '$1', $xmlString);
+        libxml_use_internal_errors(true);
+        $s = simplexml_load_string($clean);
+        if ($s === false) {
+            $errs = libxml_get_errors();
+            libxml_clear_errors();
+            return new WP_Error('parse_failed', 'XML parse failed: ' . json_encode($errs));
+        }
+        $json = json_encode($s);
+        $arr = json_decode($json, true);
+        return $arr;
+    }
 }
 
-/**
- * Split parsed bookings into upcoming and past (based on begin date)
- * @param array $parsed_results
- * @return array ['upcoming'=>[], 'past'=>[]]
- */
-function orbitur_split_bookings_list($parsed_results) {
-    $upcoming = [];
-    $past = [];
-    $now = time();
-    foreach ($parsed_results as $r) {
-        $begin = isset($r['begin']) ? strtotime($r['begin']) : 0;
-        if ($begin >= $now) $upcoming[] = $r;
-        else $past[] = $r;
+if (!function_exists('orbitur_split_bookings_list')) {
+    function orbitur_split_bookings_list($parsed)
+    {
+        $itemsFound = [];
+
+        // recursive finder
+        $finder = function ($arr) use (&$finder, &$itemsFound) {
+            if (!is_array($arr))
+                return;
+            // items may be under 'item' keys or direct arrays with 'idOrder'
+            foreach ($arr as $k => $v) {
+                if ($k === 'item' && is_array($v)) {
+                    // item could be single or array of items
+                    if (array_keys($v) !== range(0, count($v) - 1)) {
+                        // associative -> single item
+                        $itemsFound[] = $v;
+                    } else {
+                        // numeric indexed
+                        foreach ($v as $one) {
+                            $itemsFound[] = $one;
+                        }
+                    }
+                } elseif (is_array($v)) {
+                    $finder($v);
+                } else {
+                    // skip
+                }
+            }
+        };
+
+        $finder($parsed);
+
+        // fallback: find nodes with 'idOrder'
+        if (empty($itemsFound)) {
+            $finder2 = function ($arr) use (&$finder2, &$itemsFound) {
+                if (!is_array($arr))
+                    return;
+                if (isset($arr['idOrder'])) {
+                    $itemsFound[] = $arr;
+                    return;
+                }
+                foreach ($arr as $v)
+                    $finder2($v);
+            };
+            $finder2($parsed);
+        }
+
+        $up = [];
+        $past = [];
+        $today = strtotime('today');
+        foreach ($itemsFound as $it) {
+            $begin = $it['begin'] ?? ($it['dateBegin'] ?? null);
+            if ($begin) {
+                // remove timezone extra if present
+                $b = strtotime($begin);
+            } else {
+                $b = 0;
+            }
+            if ($b && $b >= $today)
+                $up[] = $it;
+            else
+                $past[] = $it;
+        }
+
+        return ['upcoming' => $up, 'past' => $past];
     }
-    return ['upcoming'=>$upcoming, 'past'=>$past];
 }

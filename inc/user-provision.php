@@ -1,32 +1,49 @@
 <?php
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH'))
+    exit;
 
 /**
- * Ensure a WP user exists for the MonCompte email and store meta
- * Returns WP user ID or WP_Error
+ * Provision WP user from MonCompte customer data.
  */
-function orbitur_provision_wp_user_after_login($email, $person_id = '', $idSession = '') {
-    if (empty($email)) return new WP_Error('no_email','No email provided');
-    $user = get_user_by('email', $email);
-    if ($user) {
-        $user_id = $user->ID;
-    } else {
-        $base = sanitize_user( current(explode('@',$email)) );
-        $username = $base ?: 'user'.time();
-        if (username_exists($username)) $username .= '_' . wp_generate_password(4,false,false);
-        $random_pw = wp_generate_password();
-        $user_id = wp_create_user($username, $random_pw, $email);
-        if (is_wp_error($user_id)) return $user_id;
-        wp_update_user(['ID'=>$user_id,'display_name'=>$username]);
+if (!function_exists('orbitur_provision_wp_user_from_moncomp')) {
+    function orbitur_provision_wp_user_from_moncomp($email, $customer = [])
+    {
+        // if exists return
+        if ($u = get_user_by('email', $email)) {
+            // optionally map new fields
+            return $u;
+        }
+
+        $random_pw = wp_generate_password(20, true);
+        $uid = wp_create_user($email, $random_pw, $email);
+        if (is_wp_error($uid))
+            return $uid;
+
+        $display = trim(($customer['firstName'] ?? '') . ' ' . ($customer['lastName'] ?? '')) ?: $email;
+        wp_update_user(['ID' => $uid, 'display_name' => $display, 'first_name' => $customer['firstName'] ?? '', 'last_name' => $customer['lastName'] ?? '']);
+
+        if (!empty($customer['phone']))
+            update_user_meta($uid, 'billing_phone', sanitize_text_field($customer['phone']));
+        if (!empty($customer['address']))
+            update_user_meta($uid, 'billing_address_1', sanitize_text_field($customer['address']));
+
+        return get_user_by('ID', $uid);
     }
+}
 
-    if ($person_id) update_user_meta($user_id,'moncomp_person_id', sanitize_text_field($person_id));
-    if ($idSession) update_user_meta($user_id,'moncomp_idSession', sanitize_text_field($idSession));
-    update_user_meta($user_id,'moncomp_last_sync', time());
-
-    // Log in the user in WP
-    wp_set_current_user($user_id);
-    wp_set_auth_cookie($user_id);
-
-    return $user_id;
+/**
+ * Try refresh moncomp session (non-blocking)
+ */
+if (!function_exists('orbitur_try_refresh_moncomp')) {
+    function orbitur_try_refresh_moncomp($email, $pw, $uid)
+    {
+        $mc = orbitur_moncomp_login($email, $pw);
+        if (is_wp_error($mc))
+            return $mc;
+        if (!empty($mc['idSession'])) {
+            update_user_meta($uid, 'moncomp_idSession', sanitize_text_field($mc['idSession']));
+            update_user_meta($uid, 'moncomp_last_sync', time());
+        }
+        return $mc;
+    }
 }
