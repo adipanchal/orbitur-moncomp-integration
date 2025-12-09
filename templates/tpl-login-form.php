@@ -3,6 +3,15 @@
 if (!defined('ABSPATH'))
   exit;
 $action_url = admin_url('admin-post.php');
+
+// Prevent the page being cached by WP/hosting caches so the nonce is always fresh
+if (!defined('DONOTCACHEPAGE')) {
+  define('DONOTCACHEPAGE', true);
+}
+// send no-cache headers for good measure
+if (function_exists('nocache_headers')) {
+  nocache_headers();
+}
 ?>
 <form id="orbitur-login-form" class="auth-form auth-form--login" action="<?php echo esc_url($action_url); ?>"
   method="post" autocomplete="on" novalidate>

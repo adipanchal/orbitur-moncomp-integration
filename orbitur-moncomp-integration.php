@@ -24,6 +24,29 @@ require_once ORBITUR_PLUGIN_DIR . 'inc/user-provision.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
 
+/* --- Enqueue assets for client-area pages only --- */
+add_action('wp_enqueue_scripts', function () {
+    // Only load on relevant pages (slugs). Adjust slugs as your pages are named.
+    $load_on = ['area-cliente', 'bem-vindo', 'registo-de-conta'];
+    if (!is_page($load_on))
+        return;
+
+    $css = ORBITUR_PLUGIN_DIR . 'assets/css/orbitur-style.css';
+    if (file_exists($css)) {
+        wp_enqueue_style('orbitur-style', ORBITUR_PLUGIN_URL . 'assets/css/orbitur-style.css', [], filemtime($css));
+    }
+
+    $js = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-dashboard.js';
+    if (file_exists($js)) {
+        wp_enqueue_script('orbitur-dashboard', ORBITUR_PLUGIN_URL . 'assets/js/orbitur-dashboard.js', ['jquery'], filemtime($js), true);
+        wp_localize_script('orbitur-dashboard', 'orbitur_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('orbitur_dashboard_nonce'),
+            'home_url' => site_url('/')
+        ]);
+    }
+});
+
 // --- safe updater init inside plugins_loaded (no direct orbitur_log call before logger exists) ---
 add_action('plugins_loaded', function () {
     // Try to include updater (composer or manual)
@@ -69,10 +92,45 @@ add_action('plugins_loaded', function () {
         }
     }
 }, 20);
+
 // ---------- activation ----------
 register_activation_hook(__FILE__, function () {
     if (!get_option('orbitur_moncomp_endpoint')) {
         update_option('orbitur_moncomp_endpoint', '');
+    }
+});
+
+/* --- Redirect rules for secure access --- */
+/**
+ * - If a guest accesses the protected welcome page (/area-cliente/bem-vindo/) redirect to /area-cliente/
+ * - If a logged-in user opens the login page (/area-cliente/) redirect to /area-cliente/bem-vindo/
+ */
+add_action('template_redirect', function () {
+    if (is_admin())
+        return;
+
+    // slugs used in this site (adjust if different)
+    $login_slug = 'area-cliente'; // page with login form
+    $welcome_slug = 'area-cliente/bem-vindo'; // welcome/dashboard
+
+    $requested = trim($_SERVER['REQUEST_URI'], "/");
+    // Normalize: sometimes WP adds page base
+    $requested_path = untrailingslashit(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+
+    // Helper to check if current page is the specific WP page slug
+    $is_login_page = is_page($login_slug) || (strpos($requested_path, '/' . $login_slug) !== false && is_page());
+    $is_welcome_page = is_page('bem-vindo') || (strpos($requested_path, '/area-cliente/bem-vindo') !== false && is_page());
+
+    // If user IS NOT logged in and visiting welcome page -> redirect to login
+    if (!is_user_logged_in() && ($is_welcome_page || (strpos($requested_path, '/area-cliente/bem-vindo') !== false))) {
+        wp_safe_redirect(site_url('/' . $login_slug . '/'));
+        exit;
+    }
+
+    // If user IS logged in and is on /area-cliente/ (login page), redirect to welcome
+    if (is_user_logged_in() && ($is_login_page && !$is_welcome_page)) {
+        wp_safe_redirect(site_url('/area-cliente/bem-vindo/'));
+        exit;
     }
 });
 

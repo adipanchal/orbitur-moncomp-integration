@@ -2,127 +2,147 @@
 if (!defined('ABSPATH'))
     exit;
 require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
+/* Logging helper if you have one; no-op fallback */
+if (!function_exists('orbitur_log')) {
+    function orbitur_log($msg)
+    {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            // write to plugin log if possible
+            $f = defined('ORBITUR_LOG') ? ORBITUR_LOG : false;
+            if ($f) {
+                @file_put_contents($f, '[' . date('c') . '] ' . $msg . PHP_EOL, FILE_APPEND | LOCK_EX);
+            }
+        }
+    }
+}
 
 /**
- * orbitur_moncomp_login - try login using SoapClient (preferred) or wp_remote_post fallback
- * Returns array('idSession'=>'...','customer'=>[...]) or WP_Error.
+ * orbitur_moncomp_login: wrapper that does SOAP login
+ * Use your existing working implementation. Return ['idSession'=>..., 'customer'=>...] or WP_Error.
+ * If you already have an implementation, keep it; this is a safe stub.
  */
 if (!function_exists('orbitur_moncomp_login')) {
     function orbitur_moncomp_login($email, $pw)
     {
+        // delegate to curl fallback like your working test script
         $endpoint = get_option('orbitur_moncomp_endpoint', '');
-        if (empty($endpoint)) {
-            orbitur_log('moncomp_login: endpoint not configured');
-            return new WP_Error('no_endpoint', 'MonCompte endpoint not configured');
-        }
+        if (empty($endpoint))
+            return new WP_Error('no_endpoint', 'Endpoint not set');
 
-        // Accept either WSDL URL or endpoint without ?wsdl
-        $wsdl = $endpoint;
-        try {
-            if (defined('ORBITUR_FORCE_NO_SOAP') && ORBITUR_FORCE_NO_SOAP) {
-                throw new Exception('FORCE_NO_SOAP');
-            }
-            if (class_exists('SoapClient')) {
-                $opts = ['exceptions' => true, 'trace' => 1, 'cache_wsdl' => WSDL_CACHE_NONE];
-                $client = new SoapClient($wsdl, $opts);
-                $rq = ['id' => $email, 'pw' => $pw, 'app' => 'siteMarchand'];
-                $res = $client->__soapCall('login', ['RqLogin' => $rq]);
-                $r = json_decode(json_encode($res), true);
-                // defensive
-                $idSession = $r['result']['idSession'] ?? ($r['idSession'] ?? '');
-                if (!empty($idSession)) {
-                    orbitur_log("moncomp_login: success for {$email}");
-                    return ['idSession' => $idSession, 'customer' => $r['result'] ?? $r];
+        // Accept either ?wsdl or service URL; most calls succeed with POSTing XML as done in tests.
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://webservices.multicamp.fr"><SOAP-ENV:Body><ns1:login><RqLogin><id>' . esc_html($email) . '</id><pw>' . esc_html($pw) . '</pw><app>siteMarchand</app></RqLogin></ns1:login></SOAP-ENV:Body></SOAP-ENV:Envelope>';
+
+        $res = wp_remote_post($endpoint, [
+            'headers' => [
+                'Content-Type' => 'text/xml; charset=utf-8',
+                'SOAPAction' => 'http://webservices.multicamp.fr/login'
+            ],
+            'body' => $xml,
+            'timeout' => 20
+        ]);
+        if (is_wp_error($res))
+            return $res;
+        $body = wp_remote_retrieve_body($res);
+
+        // parse idSession if present
+        if (preg_match('/<idSession(?:\s+xsi:nil="1")?>([^<]*)<\/idSession>/', $body, $m)) {
+            $idSession = trim($m[1]);
+            if ($idSession === '') {
+                // maybe nil attribute => login failed, surface error
+                if (preg_match('/<messError>([^<]+)<\/messError>/', $body, $m2)) {
+                    return new WP_Error('login_failed', trim($m2[1]));
                 }
-                orbitur_log('moncomp_login: no idSession in soap response: ' . print_r($r, true));
-                return new WP_Error('mc_login_failed', 'Login failed', $r);
+                return new WP_Error('login_failed', 'No idSession returned');
             }
-        } catch (Throwable $e) {
-            orbitur_log('moncomp_login exception (soap): ' . $e->getMessage());
-            // fallback to HTTP SOAP envelope below
+            return ['idSession' => $idSession, 'raw' => $body];
         }
-
-        // fallback via wp_remote_post
-        try {
-            $soap_action = 'http://webservices.multicamp.fr/login';
-            $xml = '<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://webservices.multicamp.fr"><SOAP-ENV:Body><ns1:login><RqLogin><id>' . esc_html($email) . '</id><pw>' . esc_html($pw) . '</pw><app>siteMarchand</app></RqLogin></ns1:login></SOAP-ENV:Body></SOAP-ENV:Envelope>';
-            $args = [
-                'headers' => ['Content-Type' => 'text/xml; charset=utf-8', 'SOAPAction' => $soap_action],
-                'body' => $xml,
-                'timeout' => 30,
-            ];
-            $res = wp_remote_post($endpoint, $args);
-            if (is_wp_error($res)) {
-                orbitur_log('moncomp_login http error: ' . $res->get_error_message());
-                return $res;
-            }
-            $body = wp_remote_retrieve_body($res);
-            if (preg_match('/<idSession[^>]*>([^<]+)<\/idSession>/', $body, $m)) {
-                $idSession = $m[1];
-                orbitur_log("moncomp_login (http): success idSession={$idSession}");
-                return ['idSession' => $idSession, 'raw' => $body];
-            }
-            orbitur_log('moncomp_login http: no idSession in body, snippet: ' . substr($body, 0, 400));
-            return new WP_Error('mc_login_failed', 'Login failed (no idSession)', $body);
-        } catch (Throwable $e) {
-            orbitur_log('moncomp_login http exception: ' . $e->getMessage());
-            return new WP_Error('mc_exc', $e->getMessage());
-        }
+        // fallback erb: return WP_Error with raw response
+        return new WP_Error('soap_no_session', 'No idSession', $body);
     }
 }
 
 /**
- * orbitur_moncomp_create_account - placeholder (should be implemented against MonCompte SOAP)
- * Returns WP_Error or array with customerId.
- */
-if (!function_exists('orbitur_moncomp_create_account')) {
-    function orbitur_moncomp_create_account($uid, $data = [])
-    {
-        orbitur_log("moncomp_create_account placeholder for user {$uid}");
-        return ['customerId' => 'TEMP-' . $uid];
-    }
-}
-
-/**
- * orbitur_getBookingList_raw - fetch raw XML result for a given idSession
+ * Get BookingList raw response string using idSession
  */
 if (!function_exists('orbitur_getBookingList_raw')) {
     function orbitur_getBookingList_raw($idSession)
     {
         $endpoint = get_option('orbitur_moncomp_endpoint', '');
         if (empty($endpoint))
-            return new WP_Error('no_endpoint', 'No endpoint');
+            return new WP_Error('no_endpoint', 'Endpoint not set');
 
-        // Try SoapClient first
-        try {
-            if (defined('ORBITUR_FORCE_NO_SOAP') && ORBITUR_FORCE_NO_SOAP) {
-                throw new Exception('FORCE_NO_SOAP');
-            }
-            if (class_exists('SoapClient')) {
-                $client = new SoapClient($endpoint, ['trace' => 1, 'exceptions' => 1]);
-                $rq = ['idSession' => $idSession, 'lg' => 'pt', 'chosenList' => 3, 'maxResults' => 200];
-                $res = $client->__soapCall('getBookingList', ['RqGetBookingList' => $rq]);
-                // convert to xml string (safe)
-                $raw = json_encode($res);
-                return $raw;
-            }
-        } catch (Throwable $e) {
-            orbitur_log('getBookingList soap exception: ' . $e->getMessage());
-            // fallback
-        }
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://webservices.multicamp.fr"><SOAP-ENV:Body><ns1:getBookingList><RqGetBookingList><idSession>' . esc_html($idSession) . '</idSession><lg>pt</lg><chosenList>3</chosenList><maxResults>500</maxResults></RqGetBookingList></ns1:getBookingList></SOAP-ENV:Body></SOAP-ENV:Envelope>';
 
-        // fallback: http soap envelope
-        $soap_action = 'http://webservices.multicamp.fr/getBookingList';
-        $xml = '<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://webservices.multicamp.fr"><SOAP-ENV:Body><ns1:getBookingList><RqGetBookingList><idSession>' . esc_html($idSession) . '</idSession><lg>pt</lg><chosenList>3</chosenList><maxResults>200</maxResults></RqGetBookingList></ns1:getBookingList></SOAP-ENV:Body></SOAP-ENV:Envelope>';
         $res = wp_remote_post($endpoint, [
-            'headers' => ['Content-Type' => 'text/xml; charset=utf-8', 'SOAPAction' => $soap_action],
+            'headers' => [
+                'Content-Type' => 'text/xml; charset=utf-8',
+                'SOAPAction' => 'http://webservices.multicamp.fr/getBookingList'
+            ],
             'body' => $xml,
-            'timeout' => 30,
+            'timeout' => 25
         ]);
-        if (is_wp_error($res)) {
-            orbitur_log('getBookingList http error: ' . $res->get_error_message());
+        if (is_wp_error($res))
             return $res;
-        }
         return wp_remote_retrieve_body($res);
+    }
+}
+
+/* Parsing helpers (if you already have them, keep them — guard redeclare) */
+if (!function_exists('orbitur_parse_booking_xml_string')) {
+    function orbitur_parse_booking_xml_string($xmlString)
+    {
+        if (empty($xmlString))
+            return new WP_Error('empty', 'empty');
+        // remove soap namespace prefixes to simplify
+        $clean = preg_replace('/(<\/?)[a-z0-9\-_]+:/i', '$1', $xmlString);
+        libxml_use_internal_errors(true);
+        $s = simplexml_load_string($clean);
+        if ($s === false) {
+            $err = libxml_get_errors();
+            libxml_clear_errors();
+            return new WP_Error('parse_failed', 'XML parse failed');
+        }
+        $json = json_encode($s);
+        $arr = json_decode($json, true);
+        return $arr;
+    }
+}
+
+if (!function_exists('orbitur_split_bookings_list')) {
+    function orbitur_split_bookings_list($parsed)
+    {
+        $itemsFound = [];
+        $it = new RecursiveIteratorIterator(new RecursiveArrayIterator((array) $parsed));
+        foreach ($it as $key => $val) {
+            if ($key === 'item' && is_array($val)) {
+                // If item is associative vs numeric collection, normalize
+                $itemsFound[] = $val;
+            }
+        }
+        // Sometimes list->item is directly in nested arrays — attempt deeper scanning
+        if (empty($itemsFound)) {
+            $finder = function ($arr) use (&$finder, &$itemsFound) {
+                if (!is_array($arr))
+                    return;
+                if (isset($arr['idOrder'])) {
+                    $itemsFound[] = $arr;
+                    return;
+                }
+                foreach ($arr as $v)
+                    $finder($v);
+            };
+            $finder($parsed);
+        }
+        $up = [];
+        $past = [];
+        foreach ($itemsFound as $it) {
+            $begin = $it['begin'] ?? ($it['start'] ?? null);
+            $btime = $begin ? strtotime(substr($begin, 0, 10)) : 0;
+            if ($btime && $btime >= strtotime('today'))
+                $up[] = $it;
+            else
+                $past[] = $it;
+        }
+        return ['upcoming' => $up, 'past' => $past];
     }
 }

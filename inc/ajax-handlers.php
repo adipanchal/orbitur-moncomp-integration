@@ -72,9 +72,15 @@ if (!function_exists('orbitur_do_login_procedure')) {
 
 function orbitur_handle_login_ajax()
 {
-    // expect nonce param 'nonce'
+    // allow either the new unified nonce OR legacy login nonce for backward compatibility
     $nonce = sanitize_text_field($_POST['nonce'] ?? '');
-    if (!wp_verify_nonce($nonce, 'orbitur_form_action')) {
+    $ok = false;
+    if (!empty($nonce)) {
+        if (wp_verify_nonce($nonce, 'orbitur_form_action') || wp_verify_nonce($nonce, 'orbitur_login_action')) {
+            $ok = true;
+        }
+    }
+    if (!$ok) {
         wp_send_json_error('Invalid request (security).', 403);
     }
 
@@ -87,8 +93,8 @@ function orbitur_handle_login_ajax()
     }
 
     $res = orbitur_do_login_procedure($email, $pw, $remember);
-    if (!$res['success']) {
-        wp_send_json_error($res['error']);
+    if (empty($res['success'])) {
+        wp_send_json_error($res['error'] ?? 'login_failed');
     }
 
     wp_send_json_success(['redirect' => site_url('/area-cliente/bem-vindo')]);
@@ -101,7 +107,16 @@ function orbitur_handle_login_post()
         wp_safe_redirect(add_query_arg('error', 'bad_method', $ref));
         exit;
     }
-    if (!isset($_POST['orbitur_nonce']) || !wp_verify_nonce($_POST['orbitur_nonce'], 'orbitur_form_action')) {
+
+    // Support both new and legacy nonce field names:
+    $ok = false;
+    if (isset($_POST['orbitur_nonce']) && wp_verify_nonce($_POST['orbitur_nonce'], 'orbitur_form_action')) {
+        $ok = true;
+    }
+    if (!$ok && isset($_POST['orbitur_login_nonce']) && wp_verify_nonce($_POST['orbitur_login_nonce'], 'orbitur_login_action')) {
+        $ok = true;
+    }
+    if (!$ok) {
         wp_safe_redirect(add_query_arg('error', 'invalid_nonce', $ref));
         exit;
     }
@@ -219,3 +234,166 @@ function orbitur_handle_register_post()
     wp_safe_redirect(site_url('/area-cliente/bem-vindo'));
     exit;
 }
+/**
+ * AJAX: get profile
+ */
+add_action('wp_ajax_orbitur_get_profile', function () {
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('not_logged_in', 401);
+    }
+
+    $uid = get_current_user_id();
+    $user = get_userdata($uid);
+    if (!$user)
+        wp_send_json_error('no_user');
+
+    $profile = [
+        'name' => $user->display_name ?: trim($user->first_name . ' ' . $user->last_name),
+        'email' => $user->user_email,
+        'phone' => get_user_meta($uid, 'billing_phone', true),
+        'address' => get_user_meta($uid, 'billing_address_1', true),
+        'zipcode' => get_user_meta($uid, 'billing_postcode', true),
+        'city' => get_user_meta($uid, 'billing_city', true),
+        'country' => get_user_meta($uid, 'billing_country', true),
+        'nif' => get_user_meta($uid, 'nif', true),
+        'memberNumber' => get_user_meta($uid, 'moncomp_customer_id', true),
+        'idSession' => get_user_meta($uid, 'moncomp_idSession', true),
+    ];
+
+    wp_send_json_success($profile);
+});
+
+/**
+ * AJAX: update profile (partial)
+ */
+add_action('wp_ajax_orbitur_update_profile', function () {
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+    if (!is_user_logged_in())
+        wp_send_json_error('not_logged_in', 401);
+    $uid = get_current_user_id();
+
+    $allowed = [
+        'name' => FILTER_SANITIZE_STRING,
+        'email' => FILTER_SANITIZE_EMAIL,
+        'phone' => FILTER_SANITIZE_STRING,
+        'address' => FILTER_SANITIZE_STRING,
+        'zipcode' => FILTER_SANITIZE_STRING,
+        'city' => FILTER_SANITIZE_STRING,
+        'country' => FILTER_SANITIZE_STRING,
+        'nif' => FILTER_SANITIZE_STRING,
+    ];
+
+    $input = [];
+    foreach ($allowed as $k => $filter) {
+        if (isset($_POST[$k])) {
+            $input[$k] = is_string($_POST[$k]) ? wp_strip_all_tags($_POST[$k]) : '';
+        }
+    }
+
+    // Basic validations
+    if (!empty($input['email']) && !is_email($input['email'])) {
+        wp_send_json_error('invalid_email');
+    }
+
+    // Update WP profile fields
+    if (!empty($input['name'])) {
+        wp_update_user(['ID' => $uid, 'display_name' => sanitize_text_field($input['name'])]);
+    }
+    if (!empty($input['email'])) {
+        // ensure email not used by other user
+        $other = get_user_by('email', $input['email']);
+        if ($other && intval($other->ID) !== intval($uid)) {
+            wp_send_json_error('email_taken');
+        }
+        wp_update_user(['ID' => $uid, 'user_email' => sanitize_email($input['email'])]);
+    }
+
+    // update meta
+    if (array_key_exists('phone', $input))
+        update_user_meta($uid, 'billing_phone', sanitize_text_field($input['phone']));
+    if (array_key_exists('address', $input))
+        update_user_meta($uid, 'billing_address_1', sanitize_text_field($input['address']));
+    if (array_key_exists('zipcode', $input))
+        update_user_meta($uid, 'billing_postcode', sanitize_text_field($input['zipcode']));
+    if (array_key_exists('city', $input))
+        update_user_meta($uid, 'billing_city', sanitize_text_field($input['city']));
+    if (array_key_exists('country', $input))
+        update_user_meta($uid, 'billing_country', sanitize_text_field($input['country']));
+    if (array_key_exists('nif', $input))
+        update_user_meta($uid, 'nif', sanitize_text_field($input['nif']));
+
+    wp_send_json_success(['msg' => 'saved']);
+});
+
+/**
+ * AJAX: change password (server-side)
+ */
+add_action('wp_ajax_orbitur_change_password', function () {
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+    if (!is_user_logged_in())
+        wp_send_json_error('not_logged_in', 401);
+    $uid = get_current_user_id();
+    $old = isset($_POST['oldpw']) ? wp_unslash($_POST['oldpw']) : '';
+    $new = isset($_POST['newpw']) ? wp_unslash($_POST['newpw']) : '';
+    if (empty($old) || empty($new))
+        wp_send_json_error('missing');
+
+    $user = wp_get_current_user();
+    // Verify current password
+    if (!wp_check_password($old, $user->user_pass, $uid)) {
+        wp_send_json_error('wrong_old');
+    }
+
+    // Validate new password strength minimally
+    if (strlen($new) < 8) {
+        wp_send_json_error('weak_password');
+    }
+
+    wp_set_password($new, $uid);
+    // After wp_set_password, current session invalid — re-login needed; but we can set a flag
+    wp_send_json_success(['msg' => 'password_changed']);
+});
+
+/**
+ * AJAX: get bookings (returns parsed upcoming/past arrays)
+ */
+add_action('wp_ajax_orbitur_get_bookings', function () {
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+    if (!is_user_logged_in())
+        wp_send_json_error('not_logged_in', 401);
+
+    $uid = get_current_user_id();
+    $idSession = get_user_meta($uid, 'moncomp_idSession', true);
+    if (empty($idSession)) {
+        wp_send_json_error('no_session');
+    }
+
+    // Use orbitur_getBookingList_raw() from inc/api.php
+    $raw = orbitur_getBookingList_raw($idSession);
+    if (is_wp_error($raw)) {
+        wp_send_json_error(['error' => 'soap_error', 'message' => $raw->get_error_message()]);
+    }
+
+    $parsed = orbitur_parse_booking_xml_string($raw);
+    if (is_wp_error($parsed)) {
+        wp_send_json_error(['error' => 'parse_error']);
+    }
+
+    $lists = orbitur_split_bookings_list($parsed);
+    // Respond with lists (both upcoming and past)
+    wp_send_json_success($lists);
+});
+
+/**
+ * AJAX: logout (clears WP auth cookie and redirects)
+ */
+add_action('wp_ajax_orbitur_logout', function () {
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+    if (!is_user_logged_in())
+        wp_send_json_error('not_logged_in', 401);
+
+    wp_logout();
+    wp_send_json_success(['redirect' => site_url('/area-cliente/')]);
+});
