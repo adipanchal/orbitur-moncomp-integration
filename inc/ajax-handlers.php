@@ -103,40 +103,38 @@ function orbitur_handle_login_ajax()
 function orbitur_handle_login_post()
 {
     $ref = wp_get_referer() ?: site_url('/area-cliente/');
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        wp_safe_redirect(add_query_arg('error', 'bad_method', $ref));
+        wp_safe_redirect($ref);
         exit;
     }
 
-    // Support both new and legacy nonce field names:
-    $ok = false;
-    if (isset($_POST['orbitur_nonce']) && wp_verify_nonce($_POST['orbitur_nonce'], 'orbitur_form_action')) {
-        $ok = true;
-    }
-    if (!$ok && isset($_POST['orbitur_login_nonce']) && wp_verify_nonce($_POST['orbitur_login_nonce'], 'orbitur_login_action')) {
-        $ok = true;
-    }
-    if (!$ok) {
+    // ✅ CORRECT NONCE CHECK
+    if (
+        !isset($_POST['orbitur_login_nonce']) ||
+        !wp_verify_nonce($_POST['orbitur_login_nonce'], 'orbitur_login_action')
+    ) {
         wp_safe_redirect(add_query_arg('error', 'invalid_nonce', $ref));
         exit;
     }
 
-    $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
-    $pw = isset($_POST['pw']) ? wp_unslash($_POST['pw']) : '';
+    $email = sanitize_email($_POST['email'] ?? '');
+    $pw = $_POST['pw'] ?? '';
     $remember = !empty($_POST['remember']);
 
-    if (empty($email) || empty($pw)) {
+    if (!$email || !$pw) {
         wp_safe_redirect(add_query_arg('error', 'missing', $ref));
         exit;
     }
 
     $res = orbitur_do_login_procedure($email, $pw, $remember);
+
     if (!$res['success']) {
         wp_safe_redirect(add_query_arg('error', 'login_failed', $ref));
         exit;
     }
 
-    wp_safe_redirect(site_url('/area-cliente/bem-vindo'));
+    wp_safe_redirect(site_url('/area-cliente/bem-vindo/'));
     exit;
 }
 
@@ -397,3 +395,72 @@ add_action('wp_ajax_orbitur_logout', function () {
     wp_logout();
     wp_send_json_success(['redirect' => site_url('/area-cliente/')]);
 });
+
+/**
+ * AJAX: OCC register member
+ */
+add_action('wp_ajax_orbitur_occ_register', 'orbitur_occ_register');
+function orbitur_occ_register()
+{
+
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('not_logged_in', 401);
+    }
+
+    $uid = get_current_user_id();
+
+    // Prevent duplicate registration
+    $existing = get_user_meta($uid, 'moncomp_customer_id', true);
+    if (!empty($existing)) {
+        wp_send_json_error('already_member');
+    }
+
+    // -------- Sanitize input --------
+    $data = [
+        'first_name' => sanitize_text_field($_POST['firstname'] ?? ''),
+        'last_name' => sanitize_text_field($_POST['lastname'] ?? ''),
+        'email' => sanitize_email($_POST['email'] ?? ''),
+        'phone' => sanitize_text_field($_POST['phone'] ?? ''),
+        'address' => sanitize_text_field($_POST['address'] ?? ''),
+        'zipcode' => sanitize_text_field($_POST['zipcode'] ?? ''),
+        'city' => sanitize_text_field($_POST['city'] ?? ''),
+        'country' => sanitize_text_field($_POST['country'] ?? ''),
+        'nationality' => sanitize_text_field($_POST['nationality'] ?? ''),
+        'birthdate' => sanitize_text_field($_POST['birthdate'] ?? ''),
+        'id_type' => sanitize_text_field($_POST['id_type'] ?? ''),
+        'id_number' => sanitize_text_field($_POST['id_number'] ?? ''),
+        'tax_number' => sanitize_text_field($_POST['tax_number'] ?? ''),
+    ];
+
+    if (empty($data['email']) || empty($data['first_name'])) {
+        wp_send_json_error('missing_required_fields');
+    }
+
+    /**
+     * ------------------------------------
+     * CREATE OCC MEMBER (MONCOMPTE)
+     * ------------------------------------
+     * Replace this stub with real SOAP call later
+     */
+
+    // TEMP: generate OCC number (production-safe placeholder)
+    $occ_number = 'OCC' . time() . rand(100, 999);
+
+    // Store OCC data
+    update_user_meta($uid, 'moncomp_customer_id', $occ_number);
+    update_user_meta($uid, 'occ_status', 'active');
+    update_user_meta($uid, 'occ_valid_until', date('Y-m-d', strtotime('+1 year')));
+
+    // Optional: store submitted data
+    foreach ($data as $k => $v) {
+        if (!empty($v)) {
+            update_user_meta($uid, 'occ_' . $k, $v);
+        }
+    }
+
+    wp_send_json_success([
+        'memberNumber' => $occ_number
+    ]);
+}

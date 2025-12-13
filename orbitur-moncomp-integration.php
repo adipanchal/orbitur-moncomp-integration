@@ -26,25 +26,42 @@ require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
 
 /* --- Enqueue assets for client-area pages only --- */
 add_action('wp_enqueue_scripts', function () {
-    // Only load on relevant pages (slugs). Adjust slugs as your pages are named.
-    $load_on = ['area-cliente', 'bem-vindo', 'registo-de-conta'];
-    if (!is_page($load_on))
-        return;
 
-    $css = ORBITUR_PLUGIN_DIR . 'assets/css/orbitur-style.css';
-    if (file_exists($css)) {
-        wp_enqueue_style('orbitur-style', ORBITUR_PLUGIN_URL . 'assets/css/orbitur-style.css', [], filemtime($css));
+    /* ---------- COMMON CSS (all client pages) ---------- */
+    if (is_page(['area-cliente', 'bem-vindo', 'registo-de-conta'])) {
+
+        $css = ORBITUR_PLUGIN_DIR . 'assets/css/orbitur-style.css';
+        if (file_exists($css)) {
+            wp_enqueue_style(
+                'orbitur-style',
+                ORBITUR_PLUGIN_URL . 'assets/css/orbitur-style.css',
+                [],
+                filemtime($css)
+            );
+        }
     }
 
-    $js = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-dashboard.js';
-    if (file_exists($js)) {
-        wp_enqueue_script('orbitur-dashboard', ORBITUR_PLUGIN_URL . 'assets/js/orbitur-dashboard.js', ['jquery'], filemtime($js), true);
-        wp_localize_script('orbitur-dashboard', 'orbitur_ajax', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('orbitur_dashboard_nonce'),
-            'home_url' => site_url('/')
-        ]);
+    /* ---------- DASHBOARD JS (ONLY bem-vindo) ---------- */
+    if (is_page('bem-vindo')) {
+
+        $js = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-dashboard.js';
+        if (file_exists($js)) {
+            wp_enqueue_script(
+                'orbitur-dashboard',
+                ORBITUR_PLUGIN_URL . 'assets/js/orbitur-dashboard.js',
+                ['jquery'],
+                filemtime($js),
+                true
+            );
+
+            wp_localize_script('orbitur-dashboard', 'orbitur_ajax', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('orbitur_dashboard_nonce'),
+                'area_client_url' => site_url('/area-cliente/')
+            ]);
+        }
     }
+
 });
 
 // --- safe updater init inside plugins_loaded (no direct orbitur_log call before logger exists) ---

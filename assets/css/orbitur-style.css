@@ -106,6 +106,9 @@ textarea,
 label {
   all: unset !important;
 } */
+button {
+  all: unset !important;
+}
 
 .section-heading {
   font-family: var(--font-secondary) !important;
@@ -588,6 +591,7 @@ label {
   font-weight: 700 !important;
   text-transform: uppercase !important;
   font-family: var(--font-primary) !important;
+  text-align: center !important;
 }
 
 .tabs__btn--active {
@@ -900,7 +904,7 @@ label {
    UTILITY CLASSES
    ============================================ */
 .hidden {
-  display: none !important;
+  display: none;
 }
 
 .empty-message {
