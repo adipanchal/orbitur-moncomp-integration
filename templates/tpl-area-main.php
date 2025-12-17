@@ -182,7 +182,7 @@
         </div>
 
         <!-- ====================== ESTADIAS TAB ====================== -->
-        <div class="content-panel" data-panel="estadias" style="display:none">
+        <div class="content-panel hidden" data-panel="estadias">
 
           <h3 class="section-heading">ESTADIAS</h3>
 
@@ -298,7 +298,7 @@
         </div>
 
         <!-- ====================== OCC CARD TAB ====================== -->
-        <div class="content-panel" data-panel="cartao" style="display: none">
+        <div class="content-panel hidden" data-panel="cartao">
           <h3 class="section-heading">O MEU CARTÃO OCC</h3>
           <!-- OCC CARD -->
           <div class="occ-card hidden">
@@ -307,7 +307,7 @@
             <div class="occ-card__content">
               <div class="subsection-heading">NÚMERO MEMBRO OCC</div>
               <div class="subsection-heading__value" id="card-member">
-                45091227
+                -
               </div>
 
               <!-- Member Details -->
@@ -315,28 +315,22 @@
                 <div class="member-details__col">
                   <div class="info-item">
                     <div class="info-item__label">Estado</div>
-                    <div class="info-item__value" id="card-status">Ativo</div>
+                    <div class="info-item__value" id="card-status">-</div>
                   </div>
                   <div class="info-item">
                     <div class="info-item__label">E-mail</div>
-                    <div class="info-item__value">
-                      ruifariasantos@gmail.com
-                    </div>
+                    <div class="info-item__value">-</div>
                   </div>
                 </div>
 
                 <div class="member-details__col">
                   <div class="info-item">
                     <div class="info-item__label">Data de inscrição</div>
-                    <div class="info-item__value info-item__value--small">
-                      01/02/2014
-                    </div>
+                    <div class="info-item__value info-item__value--small">-</div>
                   </div>
                   <div class="info-item">
                     <div class="info-item__label">Data de validade</div>
-                    <div class="info-item__value info-item__value--small">
-                      31/12/2025
-                    </div>
+                    <div class="info-item__value info-item__value--small">-</div>
                   </div>
                 </div>
               </div>
@@ -358,7 +352,7 @@
             <a href="#occ-register-form" class="occ-not-member__link">aqui.</a>
           </div>
           <!-- OCC REGISTER FORM -->
-          <div class="occ-register hidden" id="occ-register-wrapper hidden">
+          <div class="occ-register hidden" id="occ-register-wrapper">
             <div class="subsection-heading">INSCRIÇÃO MEMBRO OCC</div>
             <form class="occ-register__form mt-lg" id="occ-register-form">
               <div class="form-row">
@@ -496,10 +490,18 @@
               </div>
             </form>
           </div>
+
+          <div id="occ-pending" class="occ-pending hidden">
+            <h4>PEDIDO DE INSCRIÇÃO EM ANÁLISE</h4>
+            <p>
+              O seu pedido de adesão ao Cartão OCC foi recebido e encontra-se em análise.
+              Assim que for validado, o cartão ficará disponível nesta área.
+            </p>
+          </div>
         </div>
 
         <!-- ====================== DESCONTOS TAB ====================== -->
-        <div class="content-panel" data-panel="descontos" style="display:none">
+        <div class="content-panel hidden" data-panel="descontos">
           <h3 class="section-heading">CÓDIGOS DESCONTO OCC</h3>
           <ul id="discounts-list" class="discount-list"></ul>
         </div>

@@ -41,6 +41,27 @@ add_action('wp_enqueue_scripts', function () {
         }
     }
 
+    /* ---------- AUTH FORMS JS (login + register) ---------- */
+    if (is_page(['area-cliente', 'registo-de-conta'])) {
+
+        $js_forms = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-forms.js';
+        if (file_exists($js_forms)) {
+            wp_enqueue_script(
+                'orbitur-forms',
+                ORBITUR_PLUGIN_URL . 'assets/js/orbitur-forms.js',
+                ['jquery'],
+                filemtime($js_forms),
+                true
+            );
+
+            wp_localize_script('orbitur-forms', 'orbitur_ajax', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('orbitur_form_action'),
+                'redirect' => site_url('/area-cliente/bem-vindo/')
+            ]);
+        }
+    }
+
     /* ---------- DASHBOARD JS (ONLY bem-vindo) ---------- */
     if (is_page('bem-vindo')) {
 
@@ -186,5 +207,3 @@ add_action('admin_menu', function () {
         <?php
     });
 });
-
-

@@ -1,7 +1,8 @@
 <?php if (!defined('ABSPATH'))
   exit; ?>
 <div class="orbitur-register-wrap">
-  <form id="orbitur-register-form" class="auth-form auth-form--register">
+  <form id="orbitur-register-form" class="auth-form auth-form--register" action="<?php echo esc_url($action_url); ?>"
+    method="post">
     <div class="auth-form__fields">
       <!-- Name & Surname Row -->
       <div class="form-row">
@@ -116,9 +117,10 @@
       </div>
 
       <!-- Submit Button -->
-      <button type="submit" class="btn btn--primary btn--full-width">
+      <button type="submit" class="btn btn--primary">
         REGISTAR-ME
       </button>
     </div>
+    <div class="orbitur-form-msg" aria-live="polite" style="display:none;"></div>
   </form>
 </div>

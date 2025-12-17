@@ -13,10 +13,9 @@ if (function_exists('nocache_headers')) {
   nocache_headers();
 }
 ?>
-<form id="orbitur-login-form" class="auth-form auth-form--login" action="<?php echo esc_url($action_url); ?>"
-  method="post" autocomplete="on" novalidate>
-  <?php wp_nonce_field('orbitur_login_action', 'orbitur_login_nonce'); ?>
-  <input type="hidden" name="action" value="orbitur_login" />
+<form id="orbitur-login-form" class="auth-form auth-form--login" action="#" method="post" autocomplete="on" novalidate>
+  <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('orbitur_form_action')); ?>">
+
 
   <!-- Form Fields Container -->
   <div class="auth-form__fields">
@@ -41,11 +40,23 @@ if (function_exists('nocache_headers')) {
       <input type="checkbox" name="remember" value="1" class="checkbox-label__input" />
       <span class="checkbox-label__text">Lembrar-me</span>
     </label>
-    <a class="auth-form__link" href="<?php echo esc_url(wp_lostpassword_url()); ?>">Esqueceu-se da palavra-passe?</a>
+    <a href="#" class="auth-form__link" id="orbitur-show-forgot">Esqueceu-se da palavra-passe?</a>
   </div>
 
   <!-- Submit Button -->
   <button type="submit" class="btn btn--primary btn--full-width">
     LOGIN
   </button>
+  <div class="orbitur-form-msg" aria-live="polite" style="display:none;"></div>
+
+</form>
+
+<form id="orbitur-forgot-form" class="auth-form auth-form--forgot hidden">
+  <div class="orbitur-form-msg" aria-live="polite" style="display:none;"></div>
+  <label for="orbitur_forgot_email">Email</label>
+  <input id="orbitur_forgot_email" type="email" name="email" required />
+  <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+    <button type="submit" class="btn btn--primary">Recuperar palavra-passe</button>
+    <a href="#" id="orbitur-hide-forgot" class="btn">Voltar</a>
+  </div>
 </form>

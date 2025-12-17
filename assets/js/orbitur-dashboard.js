@@ -1,74 +1,39 @@
 /**
  * Orbitur Dashboard JS
- * Loaded ONLY on /bem-vindo
+ * Loaded ONLY on /area-cliente/bem-vindo
  * Requires localized object: orbitur_ajax
  */
 (function ($) {
   ("use strict");
 
+  /* ----------------------------------------------------
+   * Guard
+   * -------------------------------------------------- */
   if (
     typeof orbitur_ajax === "undefined" ||
     !document.querySelector('[data-panel="perfil"]')
   ) {
-    return; // not dashboard page
+    return;
   }
 
   const AJAX_URL = orbitur_ajax.ajax_url;
   const NONCE = orbitur_ajax.nonce;
   const LOGIN_URL = orbitur_ajax.area_client_url || "/area-cliente/";
 
-  var OrbiturState = {
+  let OCC_UI_LOCK = false; // prevents auto-hide after clicking "aqui"
+
+  const State = {
     bookings: {
       upcoming: [],
       past: [],
     },
-    activeBooking: null,
   };
 
   /* ----------------------------------------------------
    * Helpers
    * -------------------------------------------------- */
-  function esc(s) {
-    return s ? String(s) : "";
-  }
-
   function ajaxFail(msg) {
     alert(msg || "Erro de rede.");
-  }
-
-  function resetEstadiasView() {
-    $(".tabs").show();
-    $("#bookings-upcoming").show();
-    $("#bookings-past").addClass("hidden").hide();
-    $("#manage-reserva-panel").hide();
-  }
-  /* ----------------------------------------------------
-   * Booking tabs (upcoming / past)
-   * -------------------------------------------------- */
-  $(document).on("click", ".tabs__btn", function () {
-    $(".tabs__btn").removeClass("tabs__btn--active");
-    $(this).addClass("tabs__btn--active");
-
-    const list = $(this).data("list");
-
-    if (list === "upcoming") {
-      $("#bookings-upcoming").show();
-      $("#bookings-past").hide();
-    } else {
-      $("#bookings-upcoming").hide();
-      $("#bookings-past").show();
-    }
-  });
-  /* ----------------------------------------------------
-   * Panels / Tabs
-   * -------------------------------------------------- */
-  function resetPerfilSubviews() {
-    $("#profile-view").show();
-    $("#edit-profile-view, #password-view").addClass("hidden").hide();
-  }
-
-  function hideManageReserva() {
-    $("#manage-reserva-panel").hide();
   }
 
   function showPanel(name) {
@@ -80,13 +45,16 @@
     $("[data-panel]").hide();
     $('[data-panel="' + name + '"]').show();
 
-    // resets
-    hideManageReserva();
-    if (name === "perfil") resetPerfilSubviews();
+    $("#manage-reserva-panel").hide();
+
+    if (name === "perfil") {
+      $("#profile-view").show();
+      $("#edit-profile-view, #password-view").hide();
+    }
   }
 
   /* ----------------------------------------------------
-   * Profile
+   * PROFILE
    * -------------------------------------------------- */
   function loadProfile() {
     $.post(AJAX_URL, {
@@ -100,6 +68,7 @@
         }
 
         const d = res.data;
+
         $("#profile-name, #p-name").text(d.name || "—");
         $("#p-email").text(d.email || "—");
         $("#p-phone").text(d.phone || "—");
@@ -115,39 +84,20 @@
         $("#edit-zipcode").val(d.zipcode || "");
         $("#edit-country").val(d.country || "");
         $("#edit-nif").val(d.nif || "");
-
-        // ===== OCC CARD VISIBILITY =====
-        if (d.memberNumber) {
-          // User IS OCC member
-          $(".occ-card").removeClass("hidden").show();
-          $("#occ-not-member").hide();
-          $("#occ-register-wrapper").addClass("hidden").hide();
-
-          $("#card-member").text(d.memberNumber);
-          $("#card-status").text("Ativo");
-        } else {
-          // User IS NOT OCC member
-          $(".occ-card").addClass("hidden").hide();
-          $("#occ-not-member").show();
-          $("#occ-register-wrapper").removeClass("hidden").show();
-        }
       })
       .fail(function () {
         ajaxFail("Erro de rede ao carregar perfil.");
       });
   }
 
-  /* ----------------------------------------------------
-   * Profile edit
-   * -------------------------------------------------- */
   $("#open-edit-btn").on("click", function () {
     $("#profile-view").hide();
-    $("#edit-profile-view").removeClass("hidden").show();
+    $("#edit-profile-view").show();
   });
 
   $("#open-pw-btn").on("click", function () {
     $("#profile-view").hide();
-    $("#password-view").removeClass("hidden").show();
+    $("#password-view").show();
   });
 
   $("#save-profile-btn").on("click", function () {
@@ -167,9 +117,10 @@
           alert("Erro ao guardar perfil.");
           return;
         }
-        resetPerfilSubviews();
-        loadProfile();
         alert("Perfil atualizado.");
+        $("#edit-profile-view").hide();
+        $("#profile-view").show();
+        loadProfile();
       })
       .fail(function () {
         ajaxFail("Erro ao guardar perfil.");
@@ -177,50 +128,52 @@
   });
 
   /* ----------------------------------------------------
-   * Password
+   * PASSWORD
    * -------------------------------------------------- */
   $("#save-pw-btn").on("click", function () {
-    const oldpw = $("#old-pw").val();
-    const newpw = $("#new-pw").val();
-    const conf = $("#confirm-pw").val();
+    const oldpw = $("#old-pw").val().trim();
+    const newpw = $("#new-pw").val().trim();
+    const conf = $("#confirm-pw").val().trim();
 
     if (!newpw || newpw !== conf) {
-      alert("Palavra-passe inválida.");
+      alert("Nova palavra-passe inválida.");
       return;
     }
 
-    $.post(AJAX_URL, {
+    $("#save-pw-btn").prop("disabled", true);
+
+    $.post(orbitur_ajax.ajax_url, {
       action: "orbitur_change_password",
-      nonce: NONCE,
+      nonce: orbitur_ajax.nonce,
       oldpw: oldpw,
       newpw: newpw,
     })
       .done(function (res) {
         if (!res.success) {
-          alert("Erro ao alterar palavra-passe.");
+          alert(res.data || "Erro ao alterar palavra-passe");
+          $("#save-pw-btn").prop("disabled", false);
           return;
         }
-        alert("Palavra-passe alterada. Faça login novamente.");
-        window.location = LOGIN_URL;
+
+        alert("Palavra-passe alterada com sucesso.");
+        window.location.href = res.data.redirect;
       })
       .fail(function () {
-        ajaxFail("Erro ao alterar palavra-passe.");
+        alert("Erro de rede.");
+        $("#save-pw-btn").prop("disabled", false);
       });
   });
 
   /* ----------------------------------------------------
-   * Bookings
+   * BOOKINGS
    * -------------------------------------------------- */
-  function renderBookings(list, isUpcoming) {
-    const $c = isUpcoming ? $("#bookings-upcoming") : $("#bookings-past");
-    $c.empty();
+  function renderBookings(list, target, upcoming) {
+    const $c = $(target).empty();
 
     if (!list.length) {
       $c.html(
         `<p class="empty-message">${
-          isUpcoming
-            ? "Não há estadias próximas."
-            : "Não há estadias anteriores."
+          upcoming ? "Não há estadias próximas." : "Não há estadias anteriores."
         }</p>`
       );
       return;
@@ -229,34 +182,34 @@
     list.forEach(function (b) {
       const bookingJSON = JSON.stringify(b).replace(/'/g, "&apos;");
 
-      const row = $(`
-      <div class="booking-item">
-        <div class="booking-item__card booking-item__card--park">
-          <div class="booking-item__site">${b.site || "—"}</div>
+      const row = `
+        <div class="booking-item">
+          <div class="booking-item__card booking-item__card--park">
+            <div class="booking-item__site">${b.site || "—"}</div>
+          </div>
+          <div class="booking-item__card booking-item__card--date">
+            <div class="booking-item__date">${
+              (b.begin || "").split("T")[0]
+            }</div>
+          </div>
+          ${
+            upcoming
+              ? `<div class="booking-item__actions">
+                   <button
+                     type="button"
+                     class="btn btn--primary btn--manage"
+                     data-booking='${bookingJSON}'>
+                     GERIR RESERVA
+                   </button>
+                 </div>`
+              : ""
+          }
         </div>
-
-        <div class="booking-item__card booking-item__card--date">
-          <div class="booking-item__date">${(b.begin || "").split("T")[0]}</div>
-        </div>
-
-        ${
-          isUpcoming
-            ? `<div class="booking-item__actions">
-                <button
-                  type="button"
-                  class="btn btn--primary btn--manage"
-                  data-booking='${bookingJSON}'>
-                  GERIR RESERVA
-                </button>
-              </div>`
-            : ""
-        }
-      </div>
-    `);
-
+      `;
       $c.append(row);
     });
   }
+
   function loadBookings() {
     $.post(AJAX_URL, {
       action: "orbitur_get_bookings",
@@ -268,13 +221,12 @@
           return;
         }
 
-        OrbiturState.bookings.upcoming = res.data.upcoming || [];
-        OrbiturState.bookings.past = res.data.past || [];
+        State.bookings.upcoming = res.data.upcoming || [];
+        State.bookings.past = res.data.past || [];
 
-        renderBookings(OrbiturState.bookings.upcoming, true);
-        renderBookings(OrbiturState.bookings.past, false);
+        renderBookings(State.bookings.upcoming, "#bookings-upcoming", true);
+        renderBookings(State.bookings.past, "#bookings-past", false);
 
-        // default tab
         $(".tabs__btn[data-list='upcoming']").click();
       })
       .fail(function () {
@@ -282,19 +234,25 @@
       });
   }
 
+  $(document).on("click", ".tabs__btn", function () {
+    $(".tabs__btn").removeClass("tabs__btn--active");
+    $(this).addClass("tabs__btn--active");
+
+    const list = $(this).data("list");
+    $("#bookings-upcoming").toggle(list === "upcoming");
+    $("#bookings-past").toggle(list === "past");
+  });
+
   /* ----------------------------------------------------
-   * Gerir Reserva
+   * MANAGE RESERVA
    * -------------------------------------------------- */
   $(document).on("click", ".btn--manage", function () {
     const b = $(this).data("booking");
     if (!b) return;
 
-    // 🔹 HIDE booking lists + tabs
     $(".estadias_bookings_archive").hide();
-    $("#bookings-upcoming, #bookings-past").hide();
     $(".tabs").hide();
 
-    // 🔹 FILL manage-reserva panel
     $("#m-site").text(b.site || "—");
     $("#m-lodging").text(b.lodging || "—");
     $("#m-checkin").text(b.begin || "—");
@@ -309,15 +267,58 @@
     $("#alt-date-out").val((b.end || "").split("T")[0]);
     $("#alt-persons").val(b.nbPers || "");
 
-    // 🔹 SHOW manage panel
     $("#manage-reserva-panel")
       .show()
       .removeClass("hidden")[0]
       .scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
+  /* ============================
+   * OCC MEMBERSHIP
+   * ============================ */
+
+  function updateOccUI(state) {
+    $(".occ-card").addClass("hidden");
+    $("#occ-not-member").addClass("hidden");
+    $("#occ-register-wrapper").addClass("hidden");
+    $("#occ-pending").addClass("hidden");
+
+    if (state === "active") {
+      $(".occ-card").removeClass("hidden");
+    } else if (state === "pending") {
+      $("#occ-pending").removeClass("hidden");
+    } else {
+      $("#occ-not-member").removeClass("hidden");
+    }
+  }
+
+  /* click "aqui" */
+  $(document).on("click", ".occ-not-member__link", function (e) {
+    e.preventDefault();
+    $("#occ-not-member").addClass("hidden");
+    $("#occ-register-wrapper").removeClass("hidden");
+  });
+
+  /* submit registration */
+  $("#occ-register-form").on("submit", function (e) {
+    e.preventDefault();
+
+    const data = $(this).serializeArray();
+    data.push({ name: "action", value: "orbitur_occ_register" });
+    data.push({ name: "nonce", value: orbitur_ajax.nonce });
+
+    $.post(orbitur_ajax.ajax_url, data, function (r) {
+      if (r.success) {
+        alert("Pedido enviado. Em análise.");
+        updateOccUI("pending");
+      } else {
+        alert("Erro ao enviar pedido.");
+      }
+    });
+  });
+
   /* ----------------------------------------------------
-   * Logout
+   * LOGOUT
    * -------------------------------------------------- */
   $("#logout-btn").on("click", function () {
     if (!confirm("Sair da conta?")) return;
@@ -331,7 +332,7 @@
   });
 
   /* ----------------------------------------------------
-   * Menu
+   * MENU
    * -------------------------------------------------- */
   $(".nav-menu__item").on("click", function () {
     const tab = $(this).data("tab");
@@ -339,62 +340,22 @@
 
     showPanel(tab);
 
-    if (tab === "perfil") {
-      resetPerfilSubviews();
-      $("#manage-reserva-panel").hide();
-      loadProfile();
-    }
-
+    if (tab === "perfil") loadProfile();
     if (tab === "estadias") {
-      $("#manage-reserva-panel").hide();
       $(".estadias_bookings_archive").show();
       $(".tabs").show();
-      $("#bookings-upcoming").show();
       loadBookings();
+    }
+    if (tab === "cartao") {
+      loadOccStatus();
     }
   });
 
-  $("#occ-register-form").on("submit", function (e) {
-    e.preventDefault();
-
-    const form = $(this);
-
-    $.post(orbitur_ajax.ajax_url, {
-      action: "orbitur_occ_register",
-      nonce: orbitur_ajax.nonce,
-      firstname: form.find('[name="firstname"]').val(),
-      lastname: form.find('[name="lastname"]').val(),
-      email: form.find('[name="email"]').val(),
-      phone: form.find('[name="phone"]').val(),
-      address: form.find('[name="address"]').val(),
-      zipcode: form.find('[name="zipcode"]').val(),
-      city: form.find('[name="city"]').val(),
-      country: form.find('[name="country"]').val(),
-      nationality: form.find('[name="nationality"]').val(),
-      birthdate: form.find('[name="birthdate"]').val(),
-      id_type: form.find('[name="id_type"]').val(),
-      id_number: form.find('[name="id_number"]').val(),
-      tax_number: form.find('[name="tax_number"]').val(),
-    })
-      .done(function (res) {
-        if (!res.success) {
-          alert("Erro ao criar membro OCC.");
-          return;
-        }
-
-        alert("Inscrição OCC criada com sucesso!");
-        loadProfile(); // refresh → card appears
-      })
-      .fail(function () {
-        alert("Erro de rede.");
-      });
-  });
   /* ----------------------------------------------------
-   * Init
+   * INIT
    * -------------------------------------------------- */
   $(function () {
     showPanel("perfil");
-    $("#manage-reserva-panel").hide();
     loadProfile();
   });
 })(jQuery);

@@ -22,47 +22,54 @@ add_action('wp_ajax_nopriv_orbitur_register_ajax', 'orbitur_handle_register_ajax
 add_action('admin_post_orbitur_login', 'orbitur_handle_login_post');
 add_action('admin_post_nopriv_orbitur_login', 'orbitur_handle_login_post');
 
-add_action('admin_post_orbitur_register', 'orbitur_handle_register_post');
-add_action('admin_post_nopriv_orbitur_register', 'orbitur_handle_register_post');
+// add_action('admin_post_orbitur_register', 'orbitur_handle_register_post');
+// add_action('admin_post_nopriv_orbitur_register', 'orbitur_handle_register_post');
 
+/**
+ * AJAX: get fresh form nonce (cache-safe)
+ */
+add_action('wp_ajax_orbitur_get_form_nonce', 'orbitur_get_form_nonce');
+add_action('wp_ajax_nopriv_orbitur_get_form_nonce', 'orbitur_get_form_nonce');
+
+function orbitur_get_form_nonce()
+{
+    wp_send_json_success([
+        'nonce' => wp_create_nonce('orbitur_form_action')
+    ]);
+}
 /* ------------------------
  * LOGIN handlers
  * -----------------------*/
 if (!function_exists('orbitur_do_login_procedure')) {
     function orbitur_do_login_procedure($email, $pw, $remember = false)
     {
-        // 1) try local WP login
-        $user = get_user_by('email', $email);
-        if ($user) {
-            $creds = ['user_login' => $user->user_login, 'user_password' => $pw, 'remember' => $remember];
-            $signed = wp_signon($creds, is_ssl());
-            if (!is_wp_error($signed)) {
-                // try to refresh moncomp session non-blocking
-                orbitur_try_refresh_moncomp($email, $pw, $signed->ID);
-                return ['success' => true, 'user_id' => $signed->ID];
-            }
-        }
-
-        // 2) Call remote MonCompte
+        // 1) Authenticate ONLY via MonCompte
         $mc = orbitur_moncomp_login($email, $pw);
         if (is_wp_error($mc)) {
             return ['success' => false, 'error' => $mc->get_error_message()];
         }
+
         $idSession = $mc['idSession'] ?? '';
         if (empty($idSession)) {
-            return ['success' => false, 'error' => 'No idSession from remote'];
+            return ['success' => false, 'error' => 'No idSession from MonCompte'];
         }
 
-        // 3) Provision local user
+        // 2) Provision or fetch WP user
         $user_obj = orbitur_provision_wp_user_from_moncomp($email, $mc['customer'] ?? []);
         if (is_wp_error($user_obj)) {
             return ['success' => false, 'error' => $user_obj->get_error_message()];
         }
 
         $uid = intval($user_obj->ID);
+
+        // 3) ALWAYS sync WordPress password with MonCompte password
+        wp_set_password($pw, $uid);
+
+        // 4) Store MonCompte session
         update_user_meta($uid, 'moncomp_idSession', sanitize_text_field($idSession));
         update_user_meta($uid, 'moncomp_last_sync', time());
 
+        // 5) Login user in WordPress
         wp_set_current_user($uid);
         wp_set_auth_cookie($uid, $remember);
 
@@ -72,15 +79,9 @@ if (!function_exists('orbitur_do_login_procedure')) {
 
 function orbitur_handle_login_ajax()
 {
-    // allow either the new unified nonce OR legacy login nonce for backward compatibility
+    // strict single-nonce check
     $nonce = sanitize_text_field($_POST['nonce'] ?? '');
-    $ok = false;
-    if (!empty($nonce)) {
-        if (wp_verify_nonce($nonce, 'orbitur_form_action') || wp_verify_nonce($nonce, 'orbitur_login_action')) {
-            $ok = true;
-        }
-    }
-    if (!$ok) {
+    if (!wp_verify_nonce($nonce, 'orbitur_form_action')) {
         wp_send_json_error('Invalid request (security).', 403);
     }
 
@@ -112,7 +113,7 @@ function orbitur_handle_login_post()
     // ✅ CORRECT NONCE CHECK
     if (
         !isset($_POST['orbitur_login_nonce']) ||
-        !wp_verify_nonce($_POST['orbitur_login_nonce'], 'orbitur_login_action')
+        !wp_verify_nonce($_POST['orbitur_login_nonce'], 'orbitur_form_action')
     ) {
         wp_safe_redirect(add_query_arg('error', 'invalid_nonce', $ref));
         exit;
@@ -137,38 +138,106 @@ function orbitur_handle_login_post()
     wp_safe_redirect(site_url('/area-cliente/bem-vindo/'));
     exit;
 }
+/**
+ * AJAX: Forgot password (MonCompte)
+ */
+add_action('wp_ajax_orbitur_forgot_password', 'orbitur_forgot_password_ajax');
+add_action('wp_ajax_nopriv_orbitur_forgot_password', 'orbitur_forgot_password_ajax');
 
+function orbitur_forgot_password_ajax()
+{
+    check_ajax_referer('orbitur_form_action', 'nonce');
+
+    $email = sanitize_email($_POST['email'] ?? '');
+    if (empty($email)) {
+        wp_send_json_error('email_required');
+    }
+
+    $res = orbitur_moncomp_reset_password($email);
+
+    if (is_wp_error($res)) {
+        wp_send_json_error($res->get_error_message());
+    }
+
+    wp_send_json_success([
+        'message' => 'Email de redefinição enviado. Verifique a sua caixa de entrada.'
+    ]);
+}
 /* ------------------------
  * REGISTER handlers
  * -----------------------*/
+/**
+ * Generate MonCompte-compatible password
+ * 6–10 alphanumeric characters
+ */
+function orbitur_generate_password()
+{
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    $len = rand(6, 10);
+    $pw = '';
+    for ($i = 0; $i < $len; $i++) {
+        $pw .= $chars[random_int(0, strlen($chars) - 1)];
+    }
+    return $pw;
+}
+
+/**
+ * Send credentials email
+ */
+function orbitur_send_register_email($email, $password)
+{
+
+    $subject = 'Acesso à Área Cliente Orbitur';
+
+    $message = "
+Olá,
+
+A sua conta foi criada com sucesso.
+
+Email: {$email}
+Password: {$password}
+
+Pode alterar a password na Área Cliente após o primeiro login.
+
+Obrigado,
+Orbitur
+";
+
+    wp_mail($email, $subject, $message);
+}
 function orbitur_handle_register_ajax()
 {
-    $nonce = sanitize_text_field($_POST['nonce'] ?? '');
-    if (!wp_verify_nonce($nonce, 'orbitur_form_action')) {
-        wp_send_json_error('Invalid request (security).', 403);
-    }
+    check_ajax_referer('orbitur_form_action', 'nonce');
 
+    $email = sanitize_email($_POST['email'] ?? '');
     $first = sanitize_text_field($_POST['first_name'] ?? '');
     $last = sanitize_text_field($_POST['last_name'] ?? '');
-    $email = sanitize_email($_POST['email'] ?? '');
-    $pw = $_POST['password'] ?? wp_generate_password();
-    if (empty($email) || empty($first) || empty($last)) {
-        wp_send_json_error('Por favor preencha nome e email.');
+
+    if (!$email || !$first || !$last) {
+        wp_send_json_error('missing_fields');
     }
+
     if (email_exists($email)) {
-        wp_send_json_error('Este email já existe. Faça login.');
+        wp_send_json_error('email_exists');
     }
 
-    // create WP user
-    $username = $email;
-    $uid = wp_create_user($username, $pw, $email);
+    // Generate MonCompte-safe password (6–10 alphanumeric)
+    $password = wp_generate_password(8, false, false);
+
+    // Create WordPress user
+    $uid = wp_create_user($email, $password, $email);
     if (is_wp_error($uid)) {
-        wp_send_json_error('Erro ao criar o utilizador: ' . $uid->get_error_message());
+        wp_send_json_error($uid->get_error_message());
     }
 
-    wp_update_user(['ID' => $uid, 'display_name' => $first . ' ' . $last, 'first_name' => $first, 'last_name' => $last]);
+    wp_update_user([
+        'ID' => $uid,
+        'display_name' => "{$first} {$last}",
+        'first_name' => $first,
+        'last_name' => $last,
+    ]);
 
-    // save some meta
+    // Save profile meta
     update_user_meta($uid, 'billing_phone', sanitize_text_field($_POST['phone'] ?? ''));
     update_user_meta($uid, 'billing_address_1', sanitize_text_field($_POST['address'] ?? ''));
     update_user_meta($uid, 'billing_postcode', sanitize_text_field($_POST['postcode'] ?? ''));
@@ -176,17 +245,29 @@ function orbitur_handle_register_ajax()
     update_user_meta($uid, 'billing_country', sanitize_text_field($_POST['country'] ?? ''));
     update_user_meta($uid, 'nif', sanitize_text_field($_POST['nif'] ?? ''));
 
-    // optional create on MonCompte (non-blocking)
-    $mc_res = orbitur_moncomp_create_account($uid, ['first' => $first, 'last' => $last, 'email' => $email, 'password' => $pw]);
-    if (!is_wp_error($mc_res) && !empty($mc_res['customerId'])) {
-        update_user_meta($uid, 'moncomp_customer_id', sanitize_text_field($mc_res['customerId']));
+    // OPTIONAL: create MonCompte account (non-blocking)
+    if (function_exists('orbitur_moncomp_create_account')) {
+        orbitur_moncomp_create_account([
+            'email' => $email,
+            'password' => $password,
+            'first_name' => $first,
+            'last_name' => $last,
+        ]);
     }
 
-    // login user
-    wp_set_current_user($uid);
-    wp_set_auth_cookie($uid);
+    // 🔑 Immediately login to MonCompte to obtain idSession
+    $mc = orbitur_moncomp_login($email, $password);
+    if (!is_wp_error($mc) && !empty($mc['idSession'])) {
+        update_user_meta($uid, 'moncomp_idSession', sanitize_text_field($mc['idSession']));
+        update_user_meta($uid, 'moncomp_last_sync', time());
+    }
 
-    wp_send_json_success(['redirect' => site_url('/area-cliente/bem-vindo')]);
+    // TEMP (no SMTP): DO NOT auto-login user
+    // Return password once so frontend can show alert
+    wp_send_json_success([
+        'redirect' => site_url('/area-cliente/'),
+        'password' => $password
+    ]);
 }
 
 function orbitur_handle_register_post()
@@ -257,12 +338,49 @@ add_action('wp_ajax_orbitur_get_profile', function () {
         'country' => get_user_meta($uid, 'billing_country', true),
         'nif' => get_user_meta($uid, 'nif', true),
         'memberNumber' => get_user_meta($uid, 'moncomp_customer_id', true),
+        'occ_status' => get_user_meta($uid, 'occ_status', true),
+        'occ_valid' => get_user_meta($uid, 'occ_valid_until', true),
         'idSession' => get_user_meta($uid, 'moncomp_idSession', true),
     ];
 
     wp_send_json_success($profile);
 });
+/**
+ * AJAX: Get OCC membership status
+ */
+add_action('wp_ajax_orbitur_get_occ_status', function () {
 
+    check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('not_logged_in', 401);
+    }
+
+    $uid = get_current_user_id();
+
+    $status = get_user_meta($uid, 'occ_status', true);
+    $member = get_user_meta($uid, 'moncomp_customer_id', true);
+    $valid_until = get_user_meta($uid, 'occ_valid_until', true);
+
+    if ($status === 'active' && !empty($member)) {
+        wp_send_json_success([
+            'status' => 'active',
+            'memberNumber' => $member,
+            'email' => wp_get_current_user()->user_email,
+            'validUntil' => $valid_until,
+        ]);
+    }
+
+    if ($status === 'pending') {
+        wp_send_json_success([
+            'status' => 'pending'
+        ]);
+    }
+
+    wp_send_json_success([
+        'status' => 'none'
+    ]);
+});
 /**
  * AJAX: update profile (partial)
  */
@@ -326,32 +444,52 @@ add_action('wp_ajax_orbitur_update_profile', function () {
 });
 
 /**
- * AJAX: change password (server-side)
+ * AJAX: change password (DUAL MODE: strict → fallback)
  */
 add_action('wp_ajax_orbitur_change_password', function () {
+
     check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
-    if (!is_user_logged_in())
+
+    if (!is_user_logged_in()) {
         wp_send_json_error('not_logged_in', 401);
+    }
+
     $uid = get_current_user_id();
-    $old = isset($_POST['oldpw']) ? wp_unslash($_POST['oldpw']) : '';
-    $new = isset($_POST['newpw']) ? wp_unslash($_POST['newpw']) : '';
-    if (empty($old) || empty($new))
-        wp_send_json_error('missing');
 
-    $user = wp_get_current_user();
-    // Verify current password
-    if (!wp_check_password($old, $user->user_pass, $uid)) {
-        wp_send_json_error('wrong_old');
+    $oldPw = isset($_POST['oldpw']) ? wp_unslash($_POST['oldpw']) : '';
+    $newPw = isset($_POST['newpw']) ? wp_unslash($_POST['newpw']) : '';
+
+    if (empty($oldPw) || empty($newPw)) {
+        wp_send_json_error('missing_password');
     }
 
-    // Validate new password strength minimally
-    if (strlen($new) < 8) {
-        wp_send_json_error('weak_password');
+    // MonCompte password rules: 6–10 alphanumeric ONLY
+    if (!preg_match('/^[a-zA-Z0-9]{6,10}$/', $newPw)) {
+        wp_send_json_error('invalid_password_format');
     }
 
-    wp_set_password($new, $uid);
-    // After wp_set_password, current session invalid — re-login needed; but we can set a flag
-    wp_send_json_success(['msg' => 'password_changed']);
+    $idSession = get_user_meta($uid, 'moncomp_idSession', true);
+    if (empty($idSession)) {
+        wp_send_json_error('no_moncomp_session');
+    }
+
+    // 1️⃣ CHANGE PASSWORD IN MONCOMPTE (SOURCE OF TRUTH)
+    $res = orbitur_moncomp_update_password($idSession, $oldPw, $newPw);
+
+    if (is_wp_error($res)) {
+        wp_send_json_error($res->get_error_message());
+    }
+
+    // 2️⃣ SYNC WORDPRESS PASSWORD
+    wp_set_password($newPw, $uid);
+
+    // 3️⃣ CLEAR SESSION (FORCE RELOGIN)
+    wp_clear_auth_cookie();
+
+    wp_send_json_success([
+        'message' => 'password_changed',
+        'redirect' => site_url('/area-cliente/')
+    ]);
 });
 
 /**
@@ -396,12 +534,9 @@ add_action('wp_ajax_orbitur_logout', function () {
     wp_send_json_success(['redirect' => site_url('/area-cliente/')]);
 });
 
-/**
- * AJAX: OCC register member
- */
-add_action('wp_ajax_orbitur_occ_register', 'orbitur_occ_register');
-function orbitur_occ_register()
-{
+
+
+add_action('wp_ajax_orbitur_occ_register', function () {
 
     check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
 
@@ -411,14 +546,12 @@ function orbitur_occ_register()
 
     $uid = get_current_user_id();
 
-    // Prevent duplicate registration
-    $existing = get_user_meta($uid, 'moncomp_customer_id', true);
-    if (!empty($existing)) {
+    // Prevent duplicates
+    if (get_user_meta($uid, 'occ_status', true) === 'active') {
         wp_send_json_error('already_member');
     }
 
-    // -------- Sanitize input --------
-    $data = [
+    $payload = [
         'first_name' => sanitize_text_field($_POST['firstname'] ?? ''),
         'last_name' => sanitize_text_field($_POST['lastname'] ?? ''),
         'email' => sanitize_email($_POST['email'] ?? ''),
@@ -427,40 +560,30 @@ function orbitur_occ_register()
         'zipcode' => sanitize_text_field($_POST['zipcode'] ?? ''),
         'city' => sanitize_text_field($_POST['city'] ?? ''),
         'country' => sanitize_text_field($_POST['country'] ?? ''),
-        'nationality' => sanitize_text_field($_POST['nationality'] ?? ''),
         'birthdate' => sanitize_text_field($_POST['birthdate'] ?? ''),
         'id_type' => sanitize_text_field($_POST['id_type'] ?? ''),
         'id_number' => sanitize_text_field($_POST['id_number'] ?? ''),
         'tax_number' => sanitize_text_field($_POST['tax_number'] ?? ''),
     ];
 
-    if (empty($data['email']) || empty($data['first_name'])) {
-        wp_send_json_error('missing_required_fields');
+    if (empty($payload['email']) || empty($payload['first_name'])) {
+        wp_send_json_error('missing_required');
     }
 
     /**
-     * ------------------------------------
-     * CREATE OCC MEMBER (MONCOMPTE)
-     * ------------------------------------
-     * Replace this stub with real SOAP call later
+     * Call MonCompte createAccount / enrollment
+     * (async membership creation)
      */
+    $res = orbitur_moncomp_create_occ_member($payload);
 
-    // TEMP: generate OCC number (production-safe placeholder)
-    $occ_number = 'OCC' . time() . rand(100, 999);
-
-    // Store OCC data
-    update_user_meta($uid, 'moncomp_customer_id', $occ_number);
-    update_user_meta($uid, 'occ_status', 'active');
-    update_user_meta($uid, 'occ_valid_until', date('Y-m-d', strtotime('+1 year')));
-
-    // Optional: store submitted data
-    foreach ($data as $k => $v) {
-        if (!empty($v)) {
-            update_user_meta($uid, 'occ_' . $k, $v);
-        }
+    if (is_wp_error($res)) {
+        wp_send_json_error($res->get_error_message());
     }
 
+    update_user_meta($uid, 'occ_status', 'registering');
+    update_user_meta($uid, 'occ_requested_at', time());
+
     wp_send_json_success([
-        'memberNumber' => $occ_number
+        'status' => 'registering'
     ]);
-}
+});
