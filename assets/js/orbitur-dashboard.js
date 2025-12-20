@@ -74,7 +74,6 @@
         $("#p-phone").text(d.phone || "—");
         $("#p-address").text(d.address || "—");
         $("#p-country").text(d.country || "—");
-        $("#p-nif").text(d.nif || "—");
         $("#p-member").text(d.memberNumber || "—");
 
         $("#edit-firstname").val(d.name || "");
@@ -83,7 +82,6 @@
         $("#edit-address").val(d.address || "");
         $("#edit-zipcode").val(d.zipcode || "");
         $("#edit-country").val(d.country || "");
-        $("#edit-nif").val(d.nif || "");
       })
       .fail(function () {
         ajaxFail("Erro de rede ao carregar perfil.");
@@ -110,7 +108,6 @@
       address: $("#edit-address").val(),
       zipcode: $("#edit-zipcode").val(),
       country: $("#edit-country").val(),
-      nif: $("#edit-nif").val(),
     })
       .done(function (res) {
         if (!res.success) {

@@ -67,11 +67,6 @@
               </div>
 
               <div class="info-grid__item">
-                <div class="info-grid__label">NIF</div>
-                <div class="info-grid__value" id="p-nif">—</div>
-              </div>
-
-              <div class="info-grid__item">
                 <div class="info-grid__label">Número OCC</div>
                 <div class="info-grid__value" id="p-member">—</div>
               </div>
@@ -128,13 +123,6 @@
                 </div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-group__label form-group__label--small">NIF</label>
-                  <input type="text" id="edit-nif" class="form-group__input" />
-                </div>
-              </div>
-
               <div class="form-actions">
                 <button type="button" class="btn btn--primary" id="save-profile-btn">
                   Guardar Dados de Conta
@@ -154,19 +142,22 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-group__label form-group__label--small">Palavra-passe atual</label>
-                  <input type="password" id="old-pw" class="form-group__input" />
+                  <input type="password" id="old-pw" class="form-group__input" placeholder="Palavra-passe atual" />
                 </div>
+              </div>
 
+              <div class="form-row">
                 <div class="form-group">
                   <label class="form-group__label form-group__label--small">Nova palavra-passe</label>
-                  <input type="password" id="new-pw" class="form-group__input" />
+                  <input type="password" id="new-pw" class="form-group__input" placeholder="Nova Palavra-passe" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-group__label form-group__label--small">Confirmar nova palavra-passe</label>
-                  <input type="password" id="confirm-pw" class="form-group__input" />
+                  <input type="password" id="confirm-pw" class="form-group__input"
+                    placeholder="Confirmar nova palavra-passe" />
                 </div>
               </div>
 

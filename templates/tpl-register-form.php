@@ -1,8 +1,8 @@
 <?php if (!defined('ABSPATH'))
   exit; ?>
 <div class="orbitur-register-wrap">
-  <form id="orbitur-register-form" class="auth-form auth-form--register" action="<?php echo esc_url($action_url); ?>"
-    method="post">
+  <form id="orbitur-register-form" class="auth-form auth-form--register" novalidate>
+    <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('orbitur_form_action')); ?>">
     <div class="auth-form__fields">
       <!-- Name & Surname Row -->
       <div class="form-row">
@@ -109,7 +109,7 @@
 
       <!-- Privacy Policy Checkbox -->
       <div class="checkbox-label checkbox-label--with-link">
-        <input type="checkbox" class="checkbox-label__input" required />
+        <input type="checkbox" name="privacy" class="checkbox-label__input" required />
         <label class="checkbox-label__text">
           Consinto o tratamento dos meus dados pessoais de acordo com a
           <a href="#" class="checkbox-label__link">Política de Privacidade</a>.
@@ -118,7 +118,8 @@
 
       <!-- Submit Button -->
       <button type="submit" class="btn btn--primary">
-        REGISTAR-ME
+        <span class="spinner hidden" aria-hidden="true"></span>
+        <span class="btn-text">REGISTAR-ME</span>
       </button>
     </div>
     <div class="orbitur-form-msg" aria-live="polite" style="display:none;"></div>

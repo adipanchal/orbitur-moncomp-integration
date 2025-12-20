@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Orbitur MonCompte Integration
  * Plugin URI: https://github.com/adipanchal/orbitur-moncomp-integration/
- * Description: Integrates WordPress with Orbitur MonCompte (SOAP) and WebCamp widgets. Login/Register + bookings skeleton.
- * Version: 1.2.1
+ * Description: Integrates WordPress with Orbitur MonCompte (SOAP) and WebCamp widgets.
+ * Version: 1.3
  * Author: Blendd
  */
 
@@ -93,15 +93,8 @@ add_action('plugins_loaded', function () {
 
     if (file_exists($autoloader)) {
         require_once $autoloader;
-        if (function_exists('orbitur_log'))
-            orbitur_log('Updater loaded via vendor/autoload.php');
     } elseif (file_exists($manual_loader)) {
         require_once $manual_loader;
-        if (function_exists('orbitur_log'))
-            orbitur_log('Updater loaded via updater/plugin-update-checker.php');
-    } else {
-        if (function_exists('orbitur_log'))
-            orbitur_log('Updater not found (expected vendor or updater folder).');
     }
 
     // initialize update checker if available
@@ -111,22 +104,16 @@ add_action('plugins_loaded', function () {
             $updateChecker = $factory::buildUpdateChecker('https://github.com/adipanchal/orbitur-moncomp-integration', __FILE__, 'orbitur-moncomp-integration');
             if (method_exists($updateChecker, 'setBranch'))
                 $updateChecker->setBranch('main');
-            if (function_exists('orbitur_log'))
-                orbitur_log('Updater initialized (PucFactory v5).');
         } catch (Throwable $e) {
-            if (function_exists('orbitur_log'))
-                orbitur_log('Updater exception: ' . $e->getMessage());
+            // Updater exception suppressed (no logging)
         }
     } elseif (class_exists('Puc_v4_Factory')) {
         try {
             $updateChecker = Puc_v4_Factory::buildUpdateChecker('https://github.com/adipanchal/orbitur-moncomp-integration', __FILE__, 'orbitur-moncomp-integration');
             if (method_exists($updateChecker, 'setBranch'))
                 $updateChecker->setBranch('main');
-            if (function_exists('orbitur_log'))
-                orbitur_log('Updater initialized (Puc_v4_Factory).');
         } catch (Throwable $e) {
-            if (function_exists('orbitur_log'))
-                orbitur_log('Updater exception v4: ' . $e->getMessage());
+            // Updater exception suppressed (no logging)
         }
     }
 }, 20);

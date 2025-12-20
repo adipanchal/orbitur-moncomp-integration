@@ -19,6 +19,17 @@
         }, 5000);
       }
     }
+    function setLoading($form, loading) {
+      var $btn = $form.find('button[type="submit"]');
+      if (!$btn.length) return;
+      if (loading) {
+        $btn.addClass("loading").prop("disabled", true);
+        $btn.find(".spinner").removeClass("hidden");
+      } else {
+        $btn.removeClass("loading").prop("disabled", false);
+        $btn.find(".spinner").addClass("hidden");
+      }
+    }
     /* =========================
      * LOGIN (AJAX ONLY)
      * ========================= */
@@ -26,6 +37,7 @@
       e.preventDefault();
 
       const $form = $(this);
+      setLoading($form, true);
 
       // STEP 1: get fresh nonce
       $.post(orbitur_ajax.ajax_url, {
@@ -33,21 +45,32 @@
       }).done(function (n) {
         if (!n.success) {
           showMessage($form, "Erro de segurança.", "error");
+          setLoading($form, false);
           return;
         }
 
         // STEP 2: submit login with fresh nonce
-        $.post(orbitur_ajax.ajax_url, {
+        var payload = {
           action: "orbitur_login_ajax",
           nonce: n.data.nonce,
           email: $form.find('[name="email"]').val(),
           pw: $form.find('[name="pw"]').val(),
           remember: $form.find('[name="remember"]').is(":checked") ? 1 : 0,
-        }).done(function (res) {
+        };
+        // debug: log presence of fields (never log password value in production)
+        if (window.console && console.debug) {
+          console.debug("Login payload presence", {
+            email: !!payload.email,
+            pw: !!payload.pw,
+          });
+        }
+
+        $.post(orbitur_ajax.ajax_url, payload).done(function (res) {
           if (res.success) {
             window.location.href = res.data.redirect;
           } else {
             showMessage($form, res.data || "Login falhou", "error");
+            setLoading($form, false);
           }
         });
       });
@@ -72,6 +95,7 @@
     $(document).on("submit", "#orbitur-forgot-form", function (e) {
       e.preventDefault();
       var $form = $(this);
+      setLoading($form, true);
 
       const email = $form.find('[name="email"]').val();
       if (!email) {
@@ -87,12 +111,15 @@
         .done(function (res) {
           if (res.success) {
             showMessage($form, res.data.message || "Email enviado", "success");
+            setLoading($form, false);
           } else {
             showMessage($form, res.data || "Erro ao enviar email", "error");
+            setLoading($form, false);
           }
         })
         .fail(function () {
           showMessage($form, "Erro de rede.", "error");
+          setLoading($form, false);
         });
     });
 
@@ -104,6 +131,7 @@
       e.preventDefault();
 
       var $form = $(this);
+      setLoading($form, true);
 
       // STEP 1: get fresh nonce (cache-safe)
       $.post(orbitur_ajax.ajax_url, {
@@ -111,6 +139,7 @@
       }).done(function (n) {
         if (!n || !n.success) {
           showMessage($form, "Erro de segurança.", "error");
+          setLoading($form, false);
           return;
         }
 
@@ -129,6 +158,7 @@
           .done(function (res) {
             if (!res || !res.success) {
               showMessage($form, res?.data || "Erro ao criar conta", "error");
+              setLoading($form, false);
               return;
             }
 
@@ -153,6 +183,7 @@
           })
           .fail(function () {
             showMessage($form, "Erro de rede ao criar conta.", "error");
+            setLoading($form, false);
           });
       });
     });

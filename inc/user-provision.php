@@ -3,6 +3,40 @@ if (!defined('ABSPATH'))
     exit;
 
 /**
+ * Provision WP user from registration data (basic).
+ * Used when creating user account during registration.
+ */
+if (!function_exists('orbitur_provision_wp_user')) {
+    function orbitur_provision_wp_user($email, $first_name = '', $last_name = '')
+    {
+        // if exists return
+        if ($u = get_user_by('email', $email)) {
+            return $u;
+        }
+
+        $uid = wp_insert_user([
+            'user_login' => $email,
+            'user_email' => $email,
+            'user_pass' => wp_generate_password(32, true),
+        ]);
+        if (is_wp_error($uid))
+            return $uid;
+
+        $display = trim($first_name . ' ' . $last_name) ?: $email;
+        wp_update_user([
+            'ID' => $uid,
+            'display_name' => $display,
+            'first_name' => $first_name,
+            'last_name' => $last_name
+        ]);
+
+        return get_user_by('ID', $uid);
+    }
+}
+
+// NOTE: Password is NOT authoritative here.
+// MonCompte login always re-syncs the WordPress password.
+/**
  * Provision WP user from MonCompte customer data.
  */
 if (!function_exists('orbitur_provision_wp_user_from_moncomp')) {
@@ -14,8 +48,11 @@ if (!function_exists('orbitur_provision_wp_user_from_moncomp')) {
             return $u;
         }
 
-        $random_pw = wp_generate_password(20, true);
-        $uid = wp_create_user($email, $random_pw, $email);
+        $uid = wp_insert_user([
+            'user_login' => $email,
+            'user_email' => $email,
+            'user_pass' => wp_generate_password(32, true),
+        ]);
         if (is_wp_error($uid))
             return $uid;
 

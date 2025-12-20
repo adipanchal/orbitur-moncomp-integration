@@ -384,6 +384,39 @@ button {
   color: #0a7a4f;
 }
 
+/* Button spinner */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid white;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 8px;
+  box-sizing: border-box;
+  animation: orbitur-spin 0.9s linear infinite;
+}
+
+.spinner.hidden {
+  display: none;
+}
+
+.btn.loading {
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+@keyframes orbitur-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .checkbox-label__link {
   color: var(--color-text-primary);
   text-decoration: underline;
