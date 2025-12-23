@@ -53,14 +53,14 @@ if (function_exists('nocache_headers')) {
 </form>
 
 <form id="orbitur-forgot-form" class="auth-form auth-form--forgot hidden">
-  <div class="orbitur-form-msg" aria-live="polite" style="display:none;"></div>
   <label for="orbitur_forgot_email" class="form-group__label">Email</label>
-  <input id="orbitur_forgot_email" type="email" name="email" class="form-group__input" required />
+  <input id="forgot-email" type="email" name="email" class="form-group__input" placeholder="email" required />
   <div style="margin-top:.5rem;display:flex;gap:.5rem;">
     <button type="submit" class="btn btn--primary">
       <span class="spinner hidden" aria-hidden="true"></span>
-      <span class="btn-text">Recuperar palavra-passe</span>
+      <span class="btn-text">Enviar</span>
     </button>
     <a href="#" id="orbitur-hide-forgot" class="btn">Voltar</a>
   </div>
+  <div class="orbitur-form-msg" aria-live="polite" style="display:none;"></div>
 </form>

@@ -92,40 +92,24 @@
       $("#orbitur-login-form").removeClass("hidden");
     });
 
-    $(document).on("submit", "#orbitur-forgot-form", function (e) {
+    $("#orbitur-forgot-form").on("submit", function (e) {
       e.preventDefault();
-      var $form = $(this);
-      setLoading($form, true);
-
-      const email = $form.find('[name="email"]').val();
-      if (!email) {
-        showMessage($form, "Introduza o email.", "error");
-        return;
-      }
 
       $.post(orbitur_ajax.ajax_url, {
         action: "orbitur_forgot_password",
         nonce: orbitur_ajax.nonce,
-        email: email,
-      })
-        .done(function (res) {
-          if (res.success) {
-            showMessage($form, res.data.message || "Email enviado", "success");
-            setLoading($form, false);
-          } else {
-            showMessage($form, res.data || "Erro ao enviar email", "error");
-            setLoading($form, false);
-          }
-        })
-        .fail(function () {
-          showMessage($form, "Erro de rede.", "error");
-          setLoading($form, false);
-        });
+        email: $("#forgot-email").val(),
+      }).done(function (res) {
+        if (!res.success) {
+          alert(res.data || "Erro ao enviar email.");
+          return;
+        }
+        alert(res.data.message);
+      });
     });
 
     /* =========================
      * REGISTER (AJAX ONLY)
-     * TEMP DEV WORKAROUND (NO SMTP)
      * ========================= */
     $(document).on("submit", "#orbitur-register-form", function (e) {
       e.preventDefault();
@@ -186,6 +170,60 @@
             setLoading($form, false);
           });
       });
+    });
+
+    /* =========================
+     * PROFILE UPDATE (MonCompte = source of truth)
+     * ========================= */
+    $(document).on("submit", "#orbitur-profile-form", function (e) {
+      e.preventDefault();
+
+      var $form = $(this);
+      setLoading($form, true);
+
+      const payload = {
+        action: "orbitur_update_profile",
+        nonce: orbitur_dashboard.nonce,
+        phone: $form.find('[name="phone"]').val(),
+        address: $form.find('[name="address"]').val(),
+        zipcode: $form.find('[name="zipcode"]').val(),
+        city: $form.find('[name="city"]').val(),
+        country: $form.find('[name="country"]').val(),
+      };
+
+      $.post(orbitur_ajax.ajax_url, payload)
+        .done(function (res) {
+          if (!res || !res.success) {
+            showMessage($form, res?.data || "Erro ao guardar perfil.", "error");
+            setLoading($form, false);
+            return;
+          }
+
+          // If MonCompte reports no effective change
+          if (res.data && res.data.status === "unchanged") {
+            showMessage($form, res.data.message, "success");
+            setLoading($form, false);
+            return;
+          }
+
+          // Success → reload profile from MonCompte
+          showMessage(
+            $form,
+            res.data?.message || "Perfil atualizado com sucesso.",
+            "success"
+          );
+
+          // Reload profile fields from API
+          if (typeof reloadProfileFromAPI === "function") {
+            reloadProfileFromAPI();
+          }
+
+          setLoading($form, false);
+        })
+        .fail(function () {
+          showMessage($form, "Erro de rede.", "error");
+          setLoading($form, false);
+        });
     });
   });
 })(jQuery);

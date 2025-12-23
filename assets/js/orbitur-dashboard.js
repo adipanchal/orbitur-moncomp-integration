@@ -19,9 +19,6 @@
   const AJAX_URL = orbitur_ajax.ajax_url;
   const NONCE = orbitur_ajax.nonce;
   const LOGIN_URL = orbitur_ajax.area_client_url || "/area-cliente/";
-
-  let OCC_UI_LOCK = false; // prevents auto-hide after clicking "aqui"
-
   const State = {
     bookings: {
       upcoming: [],
@@ -76,11 +73,13 @@
         $("#p-country").text(d.country || "—");
         $("#p-member").text(d.memberNumber || "—");
 
-        $("#edit-firstname").val(d.name || "");
+        $("#edit-firstname").val(d.first || "");
+        $("#edit-lastname").val(d.last || "");
         $("#edit-email").val(d.email || "");
         $("#edit-phone").val(d.phone || "");
         $("#edit-address").val(d.address || "");
         $("#edit-zipcode").val(d.zipcode || "");
+        $("#edit-city").val(d.city || "");
         $("#edit-country").val(d.country || "");
       })
       .fail(function () {
@@ -91,6 +90,7 @@
   $("#open-edit-btn").on("click", function () {
     $("#profile-view").hide();
     $("#edit-profile-view").show();
+    $("#edit-firstname, #edit-lastname").prop("readonly", true);
   });
 
   $("#open-pw-btn").on("click", function () {
@@ -102,11 +102,11 @@
     $.post(AJAX_URL, {
       action: "orbitur_update_profile",
       nonce: NONCE,
-      name: $("#edit-firstname").val(),
       email: $("#edit-email").val(),
       phone: $("#edit-phone").val(),
       address: $("#edit-address").val(),
       zipcode: $("#edit-zipcode").val(),
+      city: $("#edit-city").val(),
       country: $("#edit-country").val(),
     })
       .done(function (res) {
@@ -133,10 +133,9 @@
     const conf = $("#confirm-pw").val().trim();
 
     if (!newpw || newpw !== conf) {
-      alert("Nova palavra-passe inválida.");
+      alert("As palavras-passe não coincidem.");
       return;
     }
-
     $("#save-pw-btn").prop("disabled", true);
 
     $.post(orbitur_ajax.ajax_url, {
@@ -165,10 +164,10 @@
    * BOOKINGS
    * -------------------------------------------------- */
   function renderBookings(list, target, upcoming) {
-    const $c = $(target).empty();
+    const $container = $(target).empty();
 
     if (!list.length) {
-      $c.html(
+      $container.html(
         `<p class="empty-message">${
           upcoming ? "Não há estadias próximas." : "Não há estadias anteriores."
         }</p>`
@@ -176,35 +175,47 @@
       return;
     }
 
+    const $wrapper = $('<div class="booking-list__inner"></div>');
+
+    // Header (once)
+    const header = `
+    <div class="list-header" aria-hidden="true" style="grid-template-columns: 2fr 1fr;">
+      <div class="list-header__label">PARQUE</div>
+      <div class="list-header__label">DATA</div>
+    </div>
+  `;
+    $wrapper.append(header);
+
+    // Rows
     list.forEach(function (b) {
       const bookingJSON = JSON.stringify(b).replace(/'/g, "&apos;");
 
       const row = `
-        <div class="booking-item">
-          <div class="booking-item__card booking-item__card--park">
-            <div class="booking-item__site">${b.site || "—"}</div>
-          </div>
-          <div class="booking-item__card booking-item__card--date">
-            <div class="booking-item__date">${
-              (b.begin || "").split("T")[0]
-            }</div>
-          </div>
-          ${
-            upcoming
-              ? `<div class="booking-item__actions">
-                   <button
-                     type="button"
-                     class="btn btn--primary btn--manage"
-                     data-booking='${bookingJSON}'>
-                     GERIR RESERVA
-                   </button>
-                 </div>`
-              : ""
-          }
+      <div class="booking-item">
+        <div class="booking-item__card booking-item__card--park">
+          <div class="booking-item__site">${b.site || "—"}</div>
         </div>
-      `;
-      $c.append(row);
+        <div class="booking-item__card booking-item__card--date">
+          <div class="booking-item__date">${(b.begin || "").split("T")[0]}</div>
+        </div>
+        ${
+          upcoming
+            ? `<div class="booking-item__actions">
+                 <button
+                   type="button"
+                   class="btn btn--primary btn--manage"
+                   data-booking='${bookingJSON}'>
+                   GERIR RESERVA
+                 </button>
+               </div>`
+            : ""
+        }
+      </div>
+    `;
+      $wrapper.append(row);
     });
+
+    $container.append($wrapper);
   }
 
   function loadBookings() {
@@ -274,21 +285,37 @@
    * OCC MEMBERSHIP
    * ============================ */
 
-  function updateOccUI(state) {
-    $(".occ-card").addClass("hidden");
-    $("#occ-not-member").addClass("hidden");
-    $("#occ-register-wrapper").addClass("hidden");
-    $("#occ-pending").addClass("hidden");
+  function loadOccCard() {
+    $.post(AJAX_URL, {
+      action: "orbitur_get_occ_status",
+      nonce: NONCE,
+    })
+      .done(function (res) {
+        if (!res.success || !res.data.has_membership) {
+          $(".occ-card").addClass("hidden");
+          $("#occ-not-member").removeClass("hidden");
+          return;
+        }
 
-    if (state === "active") {
-      $(".occ-card").removeClass("hidden");
-    } else if (state === "pending") {
-      $("#occ-pending").removeClass("hidden");
-    } else {
-      $("#occ-not-member").removeClass("hidden");
-    }
+        const data = res.data;
+
+        $(".occ-card").removeClass("hidden");
+        $("#occ-not-member").addClass("hidden");
+
+        $("#card-member").text(data.member_number || "—");
+        $("#card-status").text(data.status === "active" ? "Ativo" : "Inativo");
+        $("#card-email").text(data.email || "—");
+
+        $("#card-valid").text(
+          data.valid_until
+            ? new Date(data.valid_until).toLocaleDateString("pt-PT")
+            : "—"
+        );
+      })
+      .fail(function () {
+        console.error("Failed to load OCC card");
+      });
   }
-
   /* click "aqui" */
   $(document).on("click", ".occ-not-member__link", function (e) {
     e.preventDefault();
@@ -307,7 +334,7 @@
     $.post(orbitur_ajax.ajax_url, data, function (r) {
       if (r.success) {
         alert("Pedido enviado. Em análise.");
-        updateOccUI("pending");
+        // Removed call to updateOccUI as per instructions
       } else {
         alert("Erro ao enviar pedido.");
       }
@@ -344,7 +371,7 @@
       loadBookings();
     }
     if (tab === "cartao") {
-      loadOccStatus();
+      loadOccCard();
     }
   });
 

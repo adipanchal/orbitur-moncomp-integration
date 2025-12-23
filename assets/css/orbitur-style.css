@@ -164,6 +164,11 @@ button {
   flex-wrap: wrap !important;
 }
 
+.btn:hover .spinner {
+  border-color: var(--color-primary-light) !important;
+  border-top-color: transparent !important;
+}
+
 /* ============================================
    FORMS
    ============================================ */
@@ -174,7 +179,8 @@ button {
   color: var(--color-text-secondary);
 }
 
-.auth-form--login {
+.auth-form--login,
+.auth-form--forgot {
   max-width: 400px;
 }
 
@@ -642,6 +648,12 @@ button {
 
 /* Booking List */
 .booking-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.booking-list__inner {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);

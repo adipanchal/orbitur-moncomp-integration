@@ -122,42 +122,142 @@ function orbitur_moncomp_login($email, $password)
 if (!function_exists('orbitur_moncomp_reset_password')) {
     function orbitur_moncomp_reset_password($email)
     {
-
-        $endpoint = get_option('orbitur_moncomp_endpoint', '');
+        $endpoint = get_option('orbitur_moncomp_endpoint');
         if (!$endpoint) {
             return new WP_Error('no_endpoint', 'Endpoint not configured');
         }
 
-        $xml =
-            '<?xml version="1.0" encoding="UTF-8"?>' .
-            '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://webservices.multicamp.fr">' .
-            '<SOAP-ENV:Body>' .
-            '<ns1:resetPassword>' .
-            '<Email>' . esc_html($email) . '</Email>' .
-            '</ns1:resetPassword>' .
-            '</SOAP-ENV:Body>' .
-            '</SOAP-ENV:Envelope>';
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+            . 'xmlns:web="http://webservices.multicamp.fr">'
+            . '<soapenv:Body>'
+            . '<web:resetPassword>'
+            . '<RqResetPassword>'
+            . '<id><![CDATA[' . $email . ']]></id>'
+            . '</RqResetPassword>'
+            . '</web:resetPassword>'
+            . '</soapenv:Body>'
+            . '</soapenv:Envelope>';
 
-        $res = wp_remote_post($endpoint, [
-            'headers' => [
-                'Content-Type' => 'text/xml; charset=utf-8',
-                'SOAPAction' => 'http://webservices.multicamp.fr/resetPassword',
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $xml,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: text/xml; charset=utf-8',
+                'SOAPAction: "http://webservices.multicamp.fr/resetPassword"',
             ],
-            'body' => $xml,
-            'timeout' => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_TIMEOUT => 30,
         ]);
 
-        if (is_wp_error($res))
-            return $res;
+        $response = curl_exec($ch);
+        curl_close($ch);
 
-        $body = wp_remote_retrieve_body($res);
-
-        if (preg_match('/<messError[^>]*>([^<]+)<\/messError>/i', $body, $m)) {
-            return new WP_Error('reset_failed', trim($m[1]));
+        if (!$response) {
+            return new WP_Error('empty_response', 'Empty resetPassword response');
         }
 
-        return ['success' => true];
+        // Remove namespaces
+        $clean = preg_replace('/(<\/?)[a-zA-Z0-9\-_]+:/', '$1', $response);
+        $xmlObj = simplexml_load_string($clean);
+
+        if (!$xmlObj) {
+            return new WP_Error('parse_failed', 'Invalid resetPassword XML');
+        }
+
+        $body = $xmlObj->Body ?? null;
+
+        if (isset($body->Fault)) {
+            return new WP_Error(
+                'soap_fault',
+                (string) ($body->Fault->faultstring ?? 'SOAP Fault')
+            );
+        }
+
+        $result = $body->resetPasswordResponse->result ?? null;
+
+        if (!$result) {
+            return new WP_Error('invalid_response', 'Invalid resetPassword response');
+        }
+
+        if ((int) $result->error !== 0) {
+            return new WP_Error(
+                'reset_failed',
+                (string) ($result->messError ?? 'Reset password failed')
+            );
+        }
+
+        return true;
     }
+}
+
+// Change PASSWORD (WSDL SAFE)
+function orbitur_moncomp_update_password($idSession, $oldPw, $newPw)
+{
+    $endpoint = get_option('orbitur_moncomp_endpoint');
+    if (!$endpoint) {
+        return new WP_Error('no_endpoint', 'Endpoint not configured');
+    }
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+        . 'xmlns:web="http://webservices.multicamp.fr">'
+        . '<soapenv:Body>'
+        . '<web:updatePw>'
+        . '<RqUpdatePw>'
+        . '<idSession><![CDATA[' . $idSession . ']]></idSession>'
+        . '<oldPw><![CDATA[' . $oldPw . ']]></oldPw>'
+        . '<newPw><![CDATA[' . $newPw . ']]></newPw>'
+        . '</RqUpdatePw>'
+        . '</web:updatePw>'
+        . '</soapenv:Body>'
+        . '</soapenv:Envelope>';
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $xml,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: text/xml; charset=utf-8',
+            'SOAPAction: "http://webservices.multicamp.fr/updatePw"',
+        ],
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    if (!$response) {
+        return new WP_Error('empty_response', 'Empty updatePw response');
+    }
+
+    $clean = preg_replace('/(<\/?)[a-zA-Z0-9\-_]+:/', '$1', $response);
+    $xmlObj = simplexml_load_string($clean);
+
+    if (!$xmlObj) {
+        return new WP_Error('parse_failed', 'Invalid updatePw XML');
+    }
+
+    $result = $xmlObj->Body->updatePwResponse->result ?? null;
+
+    if (!$result) {
+        return new WP_Error('invalid_response', 'Invalid updatePw response');
+    }
+
+    if ((int) $result->error !== 0) {
+        return new WP_Error(
+            'update_failed',
+            (string) ($result->messError ?? 'Password update failed')
+        );
+    }
+
+    return true;
 }
 
 /* ============================================================
@@ -294,7 +394,7 @@ function orbitur_moncomp_get_person($idSession)
         return new WP_Error('empty_response', 'Empty getPerson response');
     }
 
-    // Remove namespaces
+    // Remove namespaces safely
     $clean = preg_replace('/(<\/?)[a-zA-Z0-9\-_]+:/', '$1', $response);
     $xmlObj = simplexml_load_string($clean);
 
@@ -312,6 +412,29 @@ function orbitur_moncomp_get_person($idSession)
         return new WP_Error('no_person', 'No person node');
     }
 
+    /* ============================
+     * PHONE (xsi:nil SAFE)
+     * ============================ */
+    $phone = '';
+    $mobile = '';
+
+    if (isset($person->mobilePhone) && trim((string) $person->mobilePhone) !== '') {
+        $mobile = (string) $person->mobilePhone;
+    }
+
+    if (isset($person->phone) && trim((string) $person->phone) !== '') {
+        $phone = (string) $person->phone;
+    }
+
+    $finalPhone = $mobile ?: $phone;
+
+    /* ============================
+     * OCC / FIDELITY (IMPORTANT)
+     * ============================ */
+    $occStatus = ((string) $person->fidelity === 'true') ? 'active' : '';
+    $occId = !empty($result->idFid) ? (string) $result->idFid : '';
+    $occValid = !empty($person->fidelityDate) ? (string) $person->fidelityDate : '';
+
     return [
         'first' => (string) $person->firstName,
         'last' => (string) $person->lastName,
@@ -320,12 +443,35 @@ function orbitur_moncomp_get_person($idSession)
         'zipcode' => (string) $person->postCode,
         'city' => (string) $person->city,
         'country' => (string) $person->country,
-        'phone' => (string) ($person->mobilePhone ?: $person->phone),
+        'phone' => $finalPhone,
 
-        // ✅ OCC — CORRECT
-        'occ_status' => ((string) $person->fidelity === 'true') ? 'active' : '',
-        'occ_id' => !empty($result->idFid) ? (string) $result->idFid : '',
-        'occ_valid' => !empty($person->fidelityDate) ? (string) $person->fidelityDate : '',
+        // OCC / Membership
+        'occ_status' => $occStatus,
+        'occ_id' => $occId,
+        'occ_valid' => $occValid,
+    ];
+}
+
+function orbitur_get_occ_status_from_moncomp($idSession)
+{
+    $person = orbitur_moncomp_get_person($idSession);
+    if (is_wp_error($person)) {
+        return $person;
+    }
+
+    if (
+        !empty($person['occ_id']) &&
+        !empty($person['occ_valid'])
+    ) {
+        return [
+            'has_membership' => true,
+            'member_number' => $person['occ_id'],
+            'valid_until' => $person['occ_valid'],
+        ];
+    }
+
+    return [
+        'has_membership' => false
     ];
 }
 /* ============================================================
@@ -390,91 +536,79 @@ function orbitur_moncomp_create_account(array $args)
 
     return ['success' => true];
 }
-function orbitur_moncomp_update_person($idSession, array $data)
+function orbitur_moncomp_update_person($idSession, $updates = [])
 {
     $endpoint = get_option('orbitur_moncomp_endpoint');
     if (!$endpoint) {
         return new WP_Error('no_endpoint', 'Endpoint not configured');
     }
 
-    // Only send fields that exist (VERY IMPORTANT)
-    $personXml = '';
-
-    if (!empty($data['address'])) {
-        $personXml .= '<address1><![CDATA[' . $data['address'] . ']]></address1>';
-    }
-    if (!empty($data['zipcode'])) {
-        $personXml .= '<postCode>' . $data['zipcode'] . '</postCode>';
-    }
-    if (!empty($data['city'])) {
-        $personXml .= '<city><![CDATA[' . $data['city'] . ']]></city>';
-    }
-    if (!empty($data['country'])) {
-        $personXml .= '<country>' . $data['country'] . '</country>';
-    }
-    if (!empty($data['phone'])) {
-        $personXml .= '<phone>' . $data['phone'] . '</phone>';
+    // 1️⃣ Always fetch current data
+    $current = orbitur_moncomp_get_person($idSession);
+    if (is_wp_error($current)) {
+        return $current;
     }
 
-    if ($personXml === '') {
-        return ['success' => true]; // Nothing to update
+    // 2️⃣ Merge (MonCompte is source of truth)
+    $data = array_merge([
+        'firstName' => $current['first'],
+        'lastName' => $current['last'],
+        'email' => $current['email'],
+        'address1' => $current['address'],
+        'postCode' => $current['zipcode'],
+        'city' => $current['city'],
+        'country' => $current['country'],
+        'phone' => $current['phone'],
+    ], $updates);
+
+    // 3️⃣ Validate mandatory fields
+    foreach (['firstName', 'lastName', 'email', 'address1', 'city', 'country'] as $req) {
+        if (empty($data[$req])) {
+            return new WP_Error('missing_field', 'Nom manquant');
+        }
     }
 
-    $xml =
-        '<?xml version="1.0" encoding="UTF-8"?>' .
-        '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" ' .
-        'xmlns:web="http://webservices.multicamp.fr">' .
-        '<soapenv:Body>' .
-        '<web:updatePerson>' .
-        '<RqUpdatePerson>' .
-        '<idSession>' . htmlspecialchars($idSession, ENT_XML1) . '</idSession>' .
-        '<person>' . $personXml . '</person>' .
-        '<app>siteMarchand</app>' .
-        '</RqUpdatePerson>' .
-        '</web:updatePerson>' .
-        '</soapenv:Body>' .
-        '</soapenv:Envelope>';
+    // 4️⃣ RAW XML — EXACT structure
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+        . 'xmlns:web="http://webservices.multicamp.fr">'
+        . '<soapenv:Body>'
+        . '<web:updatePerson>'
+        . '<RqUpdatePerson>'
+        . '<idSession><![CDATA[' . $idSession . ']]></idSession>'
+        . '<person>'
+        . '<firstName><![CDATA[' . $data['firstName'] . ']]></firstName>'
+        . '<lastName><![CDATA[' . $data['lastName'] . ']]></lastName>'
+        . '<email><![CDATA[' . $data['email'] . ']]></email>'
+        . '<address1><![CDATA[' . $data['address1'] . ']]></address1>'
+        . '<postCode><![CDATA[' . $data['postCode'] . ']]></postCode>'
+        . '<city><![CDATA[' . $data['city'] . ']]></city>'
+        . '<country><![CDATA[' . $data['country'] . ']]></country>'
+        . '<phone><![CDATA[' . $data['phone'] . ']]></phone>'
+        . '</person>'
+        . '</RqUpdatePerson>'
+        . '</web:updatePerson>'
+        . '</soapenv:Body>'
+        . '</soapenv:Envelope>';
 
-    $ch = curl_init($endpoint);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $xml,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: text/xml; charset=utf-8',
-            'SOAPAction: "http://webservices.multicamp.fr/updatePerson"',
+    $res = wp_remote_post($endpoint, [
+        'headers' => [
+            'Content-Type' => 'text/xml; charset=utf-8',
+            'SOAPAction' => 'http://webservices.multicamp.fr/updatePerson',
         ],
-        CURLOPT_TIMEOUT => 25,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
+        'body' => $xml,
+        'timeout' => 25,
     ]);
 
-    $response = curl_exec($ch);
-    curl_close($ch);
-
-    if (!$response) {
-        return new WP_Error('empty_response', 'Empty updatePerson response');
+    if (is_wp_error($res)) {
+        return $res;
     }
 
-    // Parse response safely
-    $clean = preg_replace('/(<\/?)[a-zA-Z0-9\-_]+:/', '$1', $response);
-    $xmlObj = simplexml_load_string($clean);
+    $body = wp_remote_retrieve_body($res);
 
-    if (!$xmlObj) {
-        return new WP_Error('parse_failed', 'Invalid XML response');
+    if (strpos($body, '<error>0</error>') === false) {
+        return new WP_Error('update_failed', 'Update failed');
     }
 
-    $result = $xmlObj->Body->updatePersonResponse->result ?? null;
-    if (!$result) {
-        return new WP_Error('no_result', 'No result node');
-    }
-
-    if ((string) $result->error !== '0') {
-        return new WP_Error(
-            'moncomp_error',
-            (string) ($result->messError ?? 'Update failed')
-        );
-    }
-
-    return ['success' => true];
+    return true;
 }

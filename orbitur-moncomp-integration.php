@@ -23,7 +23,7 @@ require_once ORBITUR_PLUGIN_DIR . 'inc/parser.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/user-provision.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/ajax-handlers.php';
 require_once ORBITUR_PLUGIN_DIR . 'inc/shortcodes.php';
-
+require_once ORBITUR_PLUGIN_DIR . 'inc/webcamp-widgets.php';
 /* --- Enqueue assets for client-area pages only --- */
 add_action('wp_enqueue_scripts', function () {
 
@@ -193,4 +193,13 @@ add_action('admin_menu', function () {
         </div>
         <?php
     });
+});
+add_action('admin_menu', function () {
+    add_management_page(
+        'Fix Orbitur Names',
+        'Fix Orbitur Names',
+        'manage_options',
+        'orbitur-fix-names',
+        'orbitur_fix_names_page'
+    );
 });
