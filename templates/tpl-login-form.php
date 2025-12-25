@@ -15,8 +15,6 @@ if (function_exists('nocache_headers')) {
 ?>
 <form id="orbitur-login-form" class="auth-form auth-form--login" action="#" method="post" autocomplete="on" novalidate>
   <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('orbitur_form_action')); ?>">
-
-
   <!-- Form Fields Container -->
   <div class="auth-form__fields">
     <!-- Email Field -->

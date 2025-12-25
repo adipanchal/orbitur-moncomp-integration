@@ -3,40 +3,6 @@ if (!defined('ABSPATH'))
     exit;
 
 require_once ORBITUR_PLUGIN_DIR . 'inc/logger.php';
-function orbitur_get_moncomp_client()
-{
-    $endpoint = rtrim(get_option('orbitur_moncomp_endpoint'), '/');
-
-    if (empty($endpoint)) {
-        throw new Exception('MonCompte endpoint not configured');
-    }
-
-    return new SoapClient(
-        null,
-        [
-            'location' => $endpoint,
-            'uri' => 'http://webservices.multicamp.fr',
-            'trace' => true,
-            'exceptions' => true,
-            'encoding' => 'UTF-8',
-            'stream_context' => stream_context_create([
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                ],
-            ]),
-        ]
-    );
-}
-/* ============================================================
- * CONSTANTS / SAFETY
- * ============================================================ */
-if (!defined('ORBITUR_MONCOMP_WSDL')) {
-    $wsdl = get_option('orbitur_moncomp_endpoint', '');
-    if ($wsdl) {
-        define('ORBITUR_MONCOMP_WSDL', $wsdl);
-    }
-}
 
 /* ------------------------------------------------------------
  * Logger fallback
@@ -431,10 +397,7 @@ function orbitur_moncomp_get_person($idSession)
     /* ============================
      * OCC / FIDELITY (IMPORTANT)
      * ============================ */
-    $occStatus = ((string) $person->fidelity === 'true') ? 'active' : '';
-    $occId = !empty($result->idFid) ? (string) $result->idFid : '';
-    $occValid = !empty($person->fidelityDate) ? (string) $person->fidelityDate : '';
-
+    $expiry_raw = !empty($person->fidelityDate) ? (string) $person->fidelityDate : '';
     return [
         'first' => (string) $person->firstName,
         'last' => (string) $person->lastName,
@@ -446,12 +409,11 @@ function orbitur_moncomp_get_person($idSession)
         'phone' => $finalPhone,
 
         // OCC / Membership
-        'occ_status' => $occStatus,
-        'occ_id' => $occId,
-        'occ_valid' => $occValid,
+        'occ_status' => ((string) $person->fidelity === 'true') ? 'active' : '',
+        'occ_id' => !empty($result->idFid) ? (string) $result->idFid : '',
+        'occ_valid' => $expiry_raw,
     ];
 }
-
 function orbitur_get_occ_status_from_moncomp($idSession)
 {
     $person = orbitur_moncomp_get_person($idSession);
@@ -459,61 +421,65 @@ function orbitur_get_occ_status_from_moncomp($idSession)
         return $person;
     }
 
-    if (
-        !empty($person['occ_id']) &&
-        !empty($person['occ_valid'])
-    ) {
+    // Get fidelity stream (start date)
+    $fid = orbitur_moncomp_get_fid_stream($idSession);
+    if (is_wp_error($fid)) {
+        return [
+            'has_membership' => false,
+            'status' => 'inactive',
+        ];
+    }
+
+    $start = substr($fid['begin'], 0, 10);
+    $expiry = orbitur_compute_occ_expiry($fid['begin']);
+
+    $active = false;
+    if ($expiry) {
+        $active = strtotime($expiry) >= strtotime(date('Y-m-d'));
+    }
+
+    if (!empty($person['occ_id'])) {
         return [
             'has_membership' => true,
             'member_number' => $person['occ_id'],
-            'valid_until' => $person['occ_valid'],
+            'email' => $person['email'],
+            'status' => $active ? 'active' : 'inactive',
+            'start_date' => $start,
+            'valid_until' => $expiry,
         ];
     }
 
     return [
-        'has_membership' => false
+        'has_membership' => false,
+        'status' => 'inactive',
     ];
 }
-/* ============================================================
- * CREATE ACCOUNT (REGISTER) — WSDL SAFE
- * ============================================================ */
-function orbitur_moncomp_create_account(array $args)
+
+/**
+ * Get Fidelity card details including start date
+ */
+function orbitur_moncomp_get_fid_stream($idSession)
 {
     $endpoint = get_option('orbitur_moncomp_endpoint');
     if (!$endpoint) {
         return new WP_Error('no_endpoint', 'Endpoint not configured');
     }
 
-    // DO NOT escape inside CDATA
     $xml = '<?xml version="1.0" encoding="UTF-8"?>'
-        . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
-        . 'xmlns:web="http://webservices.multicamp.fr">'
+        . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:web="http://webservices.multicamp.fr">'
         . '<soapenv:Body>'
-        . '<web:createAccount>'
-        . '<RqCreateAccount_1>'
-        . '<person>'
-        . '<civility>M</civility>'
-        . '<firstName><![CDATA[' . $args['first_name'] . ']]></firstName>'
-        . '<lastName><![CDATA[' . $args['last_name'] . ']]></lastName>'
-        . '<address1><![CDATA[' . $args['address'] . ']]></address1>'
-        . '<postCode>' . $args['postcode'] . '</postCode>'
-        . '<city><![CDATA[' . $args['city'] . ']]></city>'
-        . '<country>PT</country>'
-        . '<phone>' . $args['phone'] . '</phone>'
-        . '<email><![CDATA[' . $args['email'] . ']]></email>'
-        . '<newsLetter>0</newsLetter>'
-        . '</person>'
-        . '<pw><![CDATA[' . $args['password'] . ']]></pw>'
-        . '<fidelity>0</fidelity>'
-        . '<app>siteMarchand</app>'
-        . '</RqCreateAccount_1>'
-        . '</web:createAccount>'
+        . '<web:getFidStream>'
+        . '<RqGetFidStream>'
+        . '<idSession><![CDATA[' . $idSession . ']]></idSession>'
+        . '</RqGetFidStream>'
+        . '</web:getFidStream>'
         . '</soapenv:Body>'
         . '</soapenv:Envelope>';
 
     $res = wp_remote_post($endpoint, [
         'headers' => [
             'Content-Type' => 'text/xml; charset=utf-8',
+            'SOAPAction' => 'http://webservices.multicamp.fr/getFidStream',
         ],
         'body' => $xml,
         'timeout' => 30,
@@ -525,16 +491,123 @@ function orbitur_moncomp_create_account(array $args)
 
     $body = wp_remote_retrieve_body($res);
 
+    // Remove namespaces
+    $clean = preg_replace('/(<\/?)[a-zA-Z0-9\-_]+:/', '$1', $body);
+    $xmlObj = simplexml_load_string($clean);
+
+    if (!$xmlObj) {
+        return new WP_Error('parse_failed', 'Invalid getFidStream XML');
+    }
+
+    $result = $xmlObj->Body->getFidStreamResponse->result ?? null;
+    if (!$result || empty($result->begin)) {
+        return new WP_Error('no_fid', 'No FID stream found');
+    }
+
+    return [
+        'begin' => (string) $result->begin,
+    ];
+}
+function orbitur_compute_occ_expiry($begin)
+{
+    try {
+        $start = new DateTime(substr($begin, 0, 10));
+        $expiry = clone $start;
+        $expiry->modify('+12 months');
+        return $expiry->format('Y-m-d');
+    } catch (Exception $e) {
+        return null;
+    }
+}
+/* ============================================================
+ * CREATE ACCOUNT (REGISTER) — WSDL SAFE
+ * ============================================================ */
+function orbitur_moncomp_create_account(array $args)
+{
+    $endpoint = 'https://orbitur.multicamp.thelis.fr/MultiCampMonCompte/MLC_MonCompteServices';
+
+    // Mandatory fields validation
+    $required = ['email', 'password', 'first_name', 'last_name', 'civility', 'birthDate'];
+    foreach ($required as $f) {
+        if (empty($args[$f])) {
+            return new WP_Error('missing_field', 'Missing field: ' . $f);
+        }
+    }
+
+    // Password rules: MonCompte allows special chars, only length matters
+    $password = trim($args['password']);
+    if (strlen($password) < 6 || strlen($password) > 20) {
+        return new WP_Error('invalid_password', 'Password must be 6–20 characters');
+    }
+
+    $birthDate = $args['birthDate'];
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+        . 'xmlns:web="http://webservices.multicamp.fr">'
+        . '<soapenv:Body>'
+        . '<web:createAccount>'
+        . '<RqCreateAccount_1>'
+        . '<person>'
+        . '<civility>' . esc_xml($args['civility']) . '</civility>'
+        . '<firstName><![CDATA[' . $args['first_name'] . ']]></firstName>'
+        . '<lastName><![CDATA[' . $args['last_name'] . ']]></lastName>'
+        . '<address1><![CDATA[' . ($args['address'] ?? '') . ']]></address1>'
+        . '<postCode><![CDATA[' . ($args['postcode'] ?? '') . ']]></postCode>'
+        . '<city><![CDATA[' . ($args['city'] ?? '') . ']]></city>'
+        . '<country><![CDATA[' . ($args['country'] ?? 'PT') . ']]></country>'
+        . '<phone><![CDATA[' . ($args['phone'] ?? '') . ']]></phone>'
+        . '<mobilePhone><![CDATA[' . ($args['mobile'] ?? '') . ']]></mobilePhone>'
+        . '<identityNumber><![CDATA[' . ($args['id_number'] ?? '') . ']]></identityNumber>'
+        . '<taxNumber><![CDATA[' . ($args['tax_number'] ?? '') . ']]></taxNumber>'
+        . '<birthDate>' . esc_xml($birthDate) . '</birthDate>'
+        . '<email><![CDATA[' . $args['email'] . ']]></email>'
+        . '<idNationalityGrp><![CDATA[' . ($args['nationality'] ?? '') . ']]></idNationalityGrp>'
+        . '<language>PT</language>'
+        . '<newsLetter>' . (!empty($args['newsletter']) ? 'true' : 'false') . '</newsLetter>'
+        . '</person>'
+        . '<pw><![CDATA[' . $password . ']]></pw>'
+        . '<fidelity>false</fidelity>'
+        . '</RqCreateAccount_1>'
+        . '</web:createAccount>'
+        . '</soapenv:Body>'
+        . '</soapenv:Envelope>';
+
+    $res = wp_remote_post($endpoint, [
+        'headers' => [
+            'Content-Type' => 'text/xml; charset=utf-8',
+            'SOAPAction' => 'createAccount',
+        ],
+        'body' => $xml,
+        'timeout' => 30,
+    ]);
+
+    if (is_wp_error($res)) {
+        return $res;
+    }
+
+    $body = wp_remote_retrieve_body($res);
+
+    // SOAP Fault
     if (preg_match('/<faultstring[^>]*>([^<]+)<\/faultstring>/', $body, $m)) {
         return new WP_Error('soap_fault', trim($m[1]));
     }
 
-    if (preg_match('/<error>(\d+)<\/error>/', $body, $m) && (int) $m[1] !== 0) {
-        preg_match('/<messError[^>]*>([^<]*)<\/messError>/', $body, $e);
-        return new WP_Error('create_failed', $e[1] ?? 'Create failed');
+    // Business error
+    if (preg_match('/<error>(\d+)<\/error>/', $body, $m)) {
+        if ((int) $m[1] !== 0) {
+            preg_match('/<messError[^>]*>([^<]*)<\/messError>/', $body, $e);
+            return new WP_Error('create_failed', $e[1] ?? 'Create account failed');
+        }
+
+        preg_match('/<idCustomer>(\d+)<\/idCustomer>/', $body, $id);
+        return [
+            'success' => true,
+            'idCustomer' => $id[1] ?? null
+        ];
     }
 
-    return ['success' => true];
+    return new WP_Error('invalid_response', 'Unrecognized createAccount response');
 }
 function orbitur_moncomp_update_person($idSession, $updates = [])
 {
@@ -543,50 +616,44 @@ function orbitur_moncomp_update_person($idSession, $updates = [])
         return new WP_Error('no_endpoint', 'Endpoint not configured');
     }
 
-    // 1️⃣ Always fetch current data
     $current = orbitur_moncomp_get_person($idSession);
     if (is_wp_error($current)) {
         return $current;
     }
 
-    // 2️⃣ Merge (MonCompte is source of truth)
-    $data = array_merge([
+    // Prepare data using correct MonCompte field names
+    $data = [
         'firstName' => $current['first'],
         'lastName' => $current['last'],
-        'email' => $current['email'],
-        'address1' => $current['address'],
-        'postCode' => $current['zipcode'],
-        'city' => $current['city'],
-        'country' => $current['country'],
-        'phone' => $current['phone'],
-    ], $updates);
+        'email' => $updates['email'] ?? $current['email'],
+        'address1' => $updates['address'] ?? $current['address'],
+        'postCode' => $updates['zipcode'] ?? $current['zipcode'],
+        'city' => $updates['city'] ?? $current['city'],
+        'country' => $updates['country'] ?? $current['country'],
+        'phone' => $updates['phone'] ?? $current['phone'],
+    ];
 
-    // 3️⃣ Validate mandatory fields
-    foreach (['firstName', 'lastName', 'email', 'address1', 'city', 'country'] as $req) {
-        if (empty($data[$req])) {
-            return new WP_Error('missing_field', 'Nom manquant');
-        }
-    }
-
-    // 4️⃣ RAW XML — EXACT structure
+    // RAW XML — Using RqUpdatePerson_1 and adding mandatory fidelity tag [cite: 583, 588]
     $xml = '<?xml version="1.0" encoding="UTF-8"?>'
         . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
         . 'xmlns:web="http://webservices.multicamp.fr">'
+        . '<soapenv:Header/>'
         . '<soapenv:Body>'
         . '<web:updatePerson>'
-        . '<RqUpdatePerson>'
-        . '<idSession><![CDATA[' . $idSession . ']]></idSession>'
+        . '<RqUpdatePerson_1>'
+        . '<idSession>' . esc_xml($idSession) . '</idSession>'
         . '<person>'
-        . '<firstName><![CDATA[' . $data['firstName'] . ']]></firstName>'
-        . '<lastName><![CDATA[' . $data['lastName'] . ']]></lastName>'
-        . '<email><![CDATA[' . $data['email'] . ']]></email>'
-        . '<address1><![CDATA[' . $data['address1'] . ']]></address1>'
-        . '<postCode><![CDATA[' . $data['postCode'] . ']]></postCode>'
-        . '<city><![CDATA[' . $data['city'] . ']]></city>'
-        . '<country><![CDATA[' . $data['country'] . ']]></country>'
-        . '<phone><![CDATA[' . $data['phone'] . ']]></phone>'
+        . '<firstName>' . esc_xml($data['firstName']) . '</firstName>'
+        . '<lastName>' . esc_xml($data['lastName']) . '</lastName>'
+        . '<address1>' . esc_xml($data['address1']) . '</address1>'
+        . '<postCode>' . esc_xml($data['postCode']) . '</postCode>'
+        . '<city>' . esc_xml($data['city']) . '</city>'
+        . '<country>' . esc_xml($data['country']) . '</country>'
+        . '<phone>' . esc_xml($data['phone']) . '</phone>'
+        . '<email>' . esc_xml($data['email']) . '</email>'
         . '</person>'
-        . '</RqUpdatePerson>'
+        . '<fidelity>0</fidelity>' // Mandatory field 
+        . '</RqUpdatePerson_1>'
         . '</web:updatePerson>'
         . '</soapenv:Body>'
         . '</soapenv:Envelope>';
@@ -594,7 +661,7 @@ function orbitur_moncomp_update_person($idSession, $updates = [])
     $res = wp_remote_post($endpoint, [
         'headers' => [
             'Content-Type' => 'text/xml; charset=utf-8',
-            'SOAPAction' => 'http://webservices.multicamp.fr/updatePerson',
+            'SOAPAction' => 'updatePerson',
         ],
         'body' => $xml,
         'timeout' => 25,
@@ -606,9 +673,12 @@ function orbitur_moncomp_update_person($idSession, $updates = [])
 
     $body = wp_remote_retrieve_body($res);
 
-    if (strpos($body, '<error>0</error>') === false) {
-        return new WP_Error('update_failed', 'Update failed');
+    // Check for success code 0 [cite: 576, 596]
+    if (preg_match('/<error>0<\/error>/', $body)) {
+        return true;
     }
 
-    return true;
+    // Extract error message if it failed [cite: 641]
+    preg_match('/<messError[^>]*>([^<]*)<\/messError>/', $body, $err);
+    return new WP_Error('update_failed', $err[1] ?? 'Update failed at MonCompte');
 }

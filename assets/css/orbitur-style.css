@@ -51,8 +51,21 @@
    RESET & BASE STYLES
    ============================================ */
 
-a {
-  color: inherit;
+/* Global utility class */
+.hidden {
+  display: none;
+}
+
+/* Invisible utility class - keeps layout but hides element */
+.invisible {
+  visibility: hidden !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+
+.dashboard a,
+.auth-form a {
+  color: var(--color-primary) !important;
   text-decoration: none;
   transition: color var(--transition-normal);
 }
@@ -100,7 +113,7 @@ button {
 .subsection-heading__value {
   color: var(--color-text-primary) !important;
   font-size: 20px !important;
-  font-weight: 600 !important;
+  font-weight: 500 !important;
 }
 
 /* ============================================
@@ -767,7 +780,8 @@ button {
 .occ-card__image {
   width: 432px;
   max-width: 100%;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-round) !important;
+  box-shadow: var(--shadow-light) !important;
 }
 
 .occ-card__content {
@@ -975,7 +989,6 @@ button {
 @media (max-width: 767px) {
   .dashboard {
     flex-direction: column;
-    padding: var(--spacing-md);
   }
 
   .dashboard__main {

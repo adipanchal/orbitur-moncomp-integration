@@ -2,14 +2,6 @@
 if (!defined('ABSPATH'))
     exit;
 
-/**
- * Unified handlers for AJAX and admin-post.
- * Uses nonce action: 'orbitur_form_action'
- *
- * Exposes:
- * - AJAX actions: orbitur_login_ajax, orbitur_register_ajax
- * - admin-post actions: orbitur_login, orbitur_register
- */
 // ---------- AJAX hooks ----------
 add_action('wp_ajax_orbitur_login_ajax', 'orbitur_handle_login_ajax');
 add_action('wp_ajax_nopriv_orbitur_login_ajax', 'orbitur_handle_login_ajax');
@@ -17,12 +9,31 @@ add_action('wp_ajax_nopriv_orbitur_login_ajax', 'orbitur_handle_login_ajax');
 add_action('wp_ajax_orbitur_register_ajax', 'orbitur_handle_register_ajax');
 add_action('wp_ajax_nopriv_orbitur_register_ajax', 'orbitur_handle_register_ajax');
 
-// ---------- admin-post hooks (form posts) ----------
-// add_action('admin_post_orbitur_login', 'orbitur_handle_login_post');
-// add_action('admin_post_nopriv_orbitur_login', 'orbitur_handle_login_post');
+/**
+ * AJAX: Check if session is still valid
+ */
+add_action('wp_ajax_orbitur_check_session', 'orbitur_check_session');
+function orbitur_check_session()
+{
+    if (!is_user_logged_in()) {
+        wp_send_json_error(['code' => 'session_expired', 'message' => 'Session expired']);
+    }
 
-// add_action('admin_post_orbitur_register', 'orbitur_handle_register_post');
-// add_action('admin_post_nopriv_orbitur_register', 'orbitur_handle_register_post');
+    $uid = get_current_user_id();
+    $idSession = get_user_meta($uid, 'moncomp_idSession', true);
+
+    if (!$idSession) {
+        wp_send_json_error(['code' => 'session_expired', 'message' => 'Session expired']);
+    }
+
+    // Verify session is still valid by calling MonCompte
+    $person = orbitur_moncomp_get_person($idSession);
+    if (is_wp_error($person)) {
+        wp_send_json_error(['code' => 'session_expired', 'message' => 'Session expired']);
+    }
+
+    wp_send_json_success(['valid' => true]);
+}
 
 /**
  * AJAX: get fresh form nonce (cache-safe)
@@ -142,48 +153,6 @@ function orbitur_forgot_password_ajax()
         'message' => 'Enviámos um email para redefinir a sua palavra-passe.'
     ]);
 }
-/* ------------------------
- * REGISTER handlers
- * -----------------------*/
-/**
- * Generate MonCompte-compatible password
- * 6–10 alphanumeric characters
- */
-function orbitur_generate_password()
-{
-    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    $len = rand(6, 10);
-    $pw = '';
-    for ($i = 0; $i < $len; $i++) {
-        $pw .= $chars[random_int(0, strlen($chars) - 1)];
-    }
-    return $pw;
-}
-
-/**
- * Send credentials email
- */
-function orbitur_send_register_email($email, $password)
-{
-
-    $subject = 'Acesso à Área Cliente Orbitur';
-
-    $message = "
-Olá,
-
-A sua conta foi criada com sucesso.
-
-Email: {$email}
-Password: {$password}
-
-Pode alterar a password na Área Cliente após o primeiro login.
-
-Obrigado,
-Orbitur
-";
-
-    wp_mail($email, $subject, $message);
-}
 /* ======================================================
  * REGISTER (NO login, NO idSession)
  * ====================================================== */
@@ -191,51 +160,98 @@ function orbitur_handle_register_ajax()
 {
     check_ajax_referer('orbitur_form_action', 'nonce');
 
-    $email = sanitize_email($_POST['email'] ?? '');
-    $first = sanitize_text_field($_POST['first_name'] ?? '');
-    $last = sanitize_text_field($_POST['last_name'] ?? '');
+    $required = [
+        'email',
+        'first_name',
+        'last_name',
+        'password',
+        'civility',
+        'dob',
+    ];
 
-    if (!$email || !$first || !$last) {
-        wp_send_json_error('missing_fields');
+    foreach ($required as $f) {
+        if (empty($_POST[$f])) {
+            wp_send_json_error('missing ' . $f);
+        }
     }
+
+    $email = sanitize_email($_POST['email']);
 
     if (email_exists($email)) {
         wp_send_json_error('email_exists');
     }
 
-    $password = wp_generate_password(8, false, false);
+    $birthDateRaw = sanitize_text_field($_POST['dob']);
+    $birthDateIso = $birthDateRaw . 'T00:00:00.000+01:00';
 
-    /* Create MonCompte account FIRST */
+    $civility = sanitize_text_field($_POST['civility']);
+    if (!in_array($civility, ['Mr.', 'Ms.', 'Miss'], true)) {
+        $civility = 'Mr.';
+    }
+
+    // --- Create MonCompte account FIRST ---
     $mc = orbitur_moncomp_create_account([
         'email' => $email,
-        'password' => $password,
-        'first_name' => $first,
-        'last_name' => $last,
-        'phone' => $_POST['phone'] ?? '',
-        'address' => $_POST['address'] ?? '',
-        'postcode' => $_POST['postcode'] ?? '',
-        'city' => $_POST['city'] ?? '',
-        'country' => $_POST['country'] ?? 'PT',
+        'password' => $_POST['password'],
+        'first_name' => sanitize_text_field($_POST['first_name']),
+        'last_name' => sanitize_text_field($_POST['last_name']),
+        'civility' => $civility,
+        'birthDate' => $birthDateIso,
+        // Contact / address
+        'phone' => sanitize_text_field($_POST['phone'] ?? ''),
+        'mobile' => sanitize_text_field($_POST['mobile'] ?? ''),
+        'address' => sanitize_text_field($_POST['address'] ?? ''),
+        'postcode' => sanitize_text_field($_POST['postcode'] ?? ''),
+        'city' => sanitize_text_field($_POST['city'] ?? ''),
+        'country' => sanitize_text_field($_POST['country'] ?? 'PT'),
+        // Additional identity fields required by MonCompte
+        'id_number' => sanitize_text_field($_POST['id_number'] ?? ''),
+        'tax_number' => sanitize_text_field($_POST['tax_number'] ?? ''),
+        'nationality' => sanitize_text_field($_POST['nationality'] ?? ''),
+        'newsletter' => !empty($_POST['newsletter']) ? 'true' : 'false',
     ]);
+
     if (is_wp_error($mc)) {
         wp_send_json_error($mc->get_error_message());
     }
 
-    /* Create WP user */
-    $uid = wp_create_user($email, $password, $email);
+    // --- Create WordPress user AFTER MonCompte success ---
+    $uid = wp_create_user($email, $_POST['password'], $email);
     if (is_wp_error($uid)) {
         wp_send_json_error($uid->get_error_message());
     }
 
     wp_update_user([
         'ID' => $uid,
-        'display_name' => "$first $last",
-        'first_name' => $first,
-        'last_name' => $last,
+        'display_name' => $_POST['first_name'] . ' ' . $_POST['last_name'],
+        'first_name' => $_POST['first_name'],
+        'last_name' => $_POST['last_name'],
     ]);
 
+    // Persist useful fields in user meta for reuse across the dashboard
+    update_user_meta($uid, 'civility', $civility);
+    update_user_meta($uid, 'identity_number', sanitize_text_field($_POST['id_number'] ?? ''));
+    // Accept either 'nif' (form) or 'tax_number' (generic) if present
+    update_user_meta($uid, 'tax_number', sanitize_text_field($_POST['nif'] ?? ($_POST['tax_number'] ?? '')));
+    update_user_meta($uid, 'nationality', sanitize_text_field($_POST['nationality'] ?? ''));
+    update_user_meta($uid, 'mobile_phone', sanitize_text_field($_POST['mobile'] ?? ''));
+    // Save id_type and birthdate if provided
+    update_user_meta($uid, 'id_type', sanitize_text_field($_POST['id_type'] ?? ''));
+    update_user_meta($uid, 'birthdate', sanitize_text_field($_POST['dob'] ?? ''));
+
+    // Billing-related fields (mirror existing naming used elsewhere)
+    update_user_meta($uid, 'billing_phone', sanitize_text_field($_POST['phone'] ?? ''));
+    update_user_meta($uid, 'billing_address_1', sanitize_text_field($_POST['address'] ?? ''));
+    update_user_meta($uid, 'billing_postcode', sanitize_text_field($_POST['postcode'] ?? ''));
+    update_user_meta($uid, 'billing_city', sanitize_text_field($_POST['city'] ?? ''));
+    update_user_meta($uid, 'billing_country', sanitize_text_field($_POST['country'] ?? 'PT'));
+
+    // Save MonCompte idCustomer if createAccount returned it
+    if (!empty($mc['idCustomer'])) {
+        update_user_meta($uid, 'moncomp_customer_id', sanitize_text_field($mc['idCustomer']));
+    }
+
     wp_send_json_success([
-        'password' => $password,
         'redirect' => site_url('/area-cliente/')
     ]);
 }
@@ -251,56 +267,146 @@ add_action('wp_ajax_orbitur_get_profile', function () {
 
     $uid = get_current_user_id();
     $user = get_userdata($uid);
-    if (!$user)
+
+    if (!$user) {
         wp_send_json_error('no_user');
+    }
+
+    // Raw fields (used for edit form & API updates)
+    $address = get_user_meta($uid, 'billing_address_1', true);
+    $zipcode = get_user_meta($uid, 'billing_postcode', true);
+    $city = get_user_meta($uid, 'billing_city', true);
+    $country = get_user_meta($uid, 'billing_country', true);
+
+    // Display-only combined address (PROFILE VIEW ONLY)
+    $morada_display = trim(
+        implode(', ', array_filter([
+            $address,
+            $zipcode,
+            $city,
+        ]))
+    );
 
     $profile = [
+        // ===== NAME =====
         'name' => $user->display_name ?: trim($user->first_name . ' ' . $user->last_name),
         'first' => $user->first_name,
         'last' => $user->last_name,
+
+        // ===== CONTACT =====
         'email' => $user->user_email,
         'phone' => get_user_meta($uid, 'billing_phone', true),
-        'address' => get_user_meta($uid, 'billing_address_1', true),
-        'zipcode' => get_user_meta($uid, 'billing_postcode', true),
-        'city' => get_user_meta($uid, 'billing_city', true),
-        'country' => get_user_meta($uid, 'billing_country', true),
+
+        // ===== ADDRESS (RAW – FOR EDIT FORM) =====
+        'address' => $address,
+        'zipcode' => $zipcode,
+        'city' => $city,
+        'country' => $country,
+
+        // ===== ADDRESS (DISPLAY ONLY) =====
+        'morada_display' => $morada_display,
+
+        // ===== OCC / MONCOMP =====
         'memberNumber' => get_user_meta($uid, 'moncomp_customer_id', true),
         'occ_status' => get_user_meta($uid, 'occ_status', true),
         'occ_valid' => get_user_meta($uid, 'occ_valid_until', true),
+
+        // ===== SESSION =====
         'idSession' => get_user_meta($uid, 'moncomp_idSession', true),
     ];
+
+    // Additional identity fields stored in user meta (if present)
+    $profile['civility'] = get_user_meta($uid, 'civility', true);
+    $profile['id_number'] = get_user_meta($uid, 'identity_number', true);
+    $profile['tax_number'] = get_user_meta($uid, 'tax_number', true);
+    $profile['nationality'] = get_user_meta($uid, 'nationality', true);
+    $profile['mobile'] = get_user_meta($uid, 'mobile_phone', true);
+    $profile['id_type'] = get_user_meta($uid, 'id_type', true);
+    $profile['birthdate'] = get_user_meta($uid, 'birthdate', true);
 
     wp_send_json_success($profile);
 });
 /**
- * AJAX: Get OCC membership status
+ * AJAX: Get OCC membership status (Live from MonCompte)
  */
 add_action('wp_ajax_orbitur_get_occ_status', function () {
-
     check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('not_logged_in', 401);
+        wp_send_json_error('not_logged_in');
     }
 
     $uid = get_current_user_id();
 
-    $occ_id = get_user_meta($uid, 'moncomp_customer_id', true);
-    $status = get_user_meta($uid, 'occ_status', true);
-    $valid = get_user_meta($uid, 'occ_valid_until', true);
+    // Always start from a safe default response
+    $response = [
+        'has_membership' => false,
+        'member_number' => '',
+        'status' => '',
+        'valid_until' => '',
+        'email' => '',
+    ];
 
-    if ($status === 'active' && $occ_id) {
-        wp_send_json_success([
-            'has_membership' => true,
-            'member_number' => $occ_id,
-            'valid_until' => $valid,
-            'email' => wp_get_current_user()->user_email,
-        ]);
+    $idSession = get_user_meta($uid, 'moncomp_idSession', true);
+    if (!$idSession) {
+        wp_send_json_success($response);
     }
 
-    wp_send_json_success([
-        'has_membership' => false,
-    ]);
+    $person = orbitur_moncomp_get_person($idSession);
+
+    // 🚨 CRITICAL GUARD
+    if (is_wp_error($person) || !is_array($person)) {
+        wp_send_json_success($response);
+    }
+
+    $occId = $person['occ_id'] ?? '';
+    $occStatus = $person['occ_status'] ?? '';
+    $occValid = $person['occ_valid'] ?? '';
+
+    // Membership exists ONLY if idFid exists
+    if (!$occId) {
+        wp_send_json_success($response);
+    }
+
+    // Membership detected
+    $response['has_membership'] = true;
+    $response['member_number'] = $occId;
+    $response['email'] = $person['email'] ?? '';
+    $response['start_date'] = '';
+
+    /**
+     * STATUS RULE (matches old site)
+     * Active ONLY if:
+     * - fidelity == true
+     * - AND validity date exists
+     */
+    if ($occStatus === 'active' && !empty($occValid)) {
+        $response['status'] = 'active';
+    } else {
+        $response['status'] = 'inactive';
+    }
+
+    /**
+     * EXPIRY DATE LOGIC (OLD SITE COMPATIBLE)
+     * MonCompte gives fidelityDate as START date.
+     * OCC validity = END OF SAME YEAR (December).
+     *
+     * Example:
+     * fidelityDate = 2025-10-22
+     * expiry       = 12/2025
+     */
+    if (!empty($occValid)) {
+        try {
+            $dt = new DateTime($occValid);
+            $year = $dt->format('Y');
+            $response['start_date'] = $dt->format(format: 'Y-m-d');
+            $response['valid_until'] = $year . '-12-31';
+        } catch (Exception $e) {
+            // silently ignore
+        }
+    }
+
+    wp_send_json_success($response);
 });
 /**
  * AJAX: update profile (MonCompte is source of truth)
@@ -332,7 +438,12 @@ add_action('wp_ajax_orbitur_update_profile', function () {
     $res = orbitur_moncomp_update_person($idSession, $payload);
 
     if (is_wp_error($res)) {
-        wp_send_json_error($res->get_error_message());
+        $error_msg = $res->get_error_message();
+        // Detect session expired
+        if (stripos($error_msg, 'session') !== false || stripos($error_msg, 'expiré') !== false) {
+            wp_send_json_error(['code' => 'session_expired', 'message' => $error_msg]);
+        }
+        wp_send_json_error($error_msg);
     }
 
     // Always re-fetch from MonCompte

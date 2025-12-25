@@ -101,10 +101,18 @@
         email: $("#forgot-email").val(),
       }).done(function (res) {
         if (!res.success) {
-          alert(res.data || "Erro ao enviar email.");
+          if (typeof Modal !== "undefined") {
+            Modal.error(res.data || "Erro ao enviar email.");
+          } else {
+            alert(res.data || "Erro ao enviar email.");
+          }
           return;
         }
-        alert(res.data.message);
+        if (typeof Modal !== "undefined") {
+          Modal.success(res.data.message);
+        } else {
+          alert(res.data.message);
+        }
       });
     });
 
@@ -133,9 +141,16 @@
           nonce: n.data.nonce,
         };
 
+        // Ensure phone is submitted in E.164 if intl-tel-input is available
         $form.serializeArray().forEach(function (field) {
           data[field.name] = field.value;
         });
+        if (typeof window.getInternationalPhoneNumber === "function") {
+          // Replace phone with international format
+          data["phone"] =
+            window.getInternationalPhoneNumber($form.find('[name="phone"]')) ||
+            data["phone"];
+        }
 
         // STEP 3: submit register
         $.post(orbitur_ajax.ajax_url, data)
@@ -184,7 +199,10 @@
       const payload = {
         action: "orbitur_update_profile",
         nonce: orbitur_dashboard.nonce,
-        phone: $form.find('[name="phone"]').val(),
+        phone:
+          typeof window.getInternationalPhoneNumber === "function"
+            ? window.getInternationalPhoneNumber($form.find('[name="phone"]'))
+            : $form.find('[name="phone"]').val(),
         address: $form.find('[name="address"]').val(),
         zipcode: $form.find('[name="zipcode"]').val(),
         city: $form.find('[name="city"]').val(),

@@ -36,7 +36,7 @@
             </h3>
             <p class="profile__subtext">
               Este não é o seu perfil? Saia e faça login na sua conta
-              <a href="/area-cliente/">aqui</a>.
+              <a href="#" data-logout-profile>aqui</a>
             </p>
 
             <div class="info-grid">
@@ -101,7 +101,7 @@
                 </div>
                 <div class="form-group">
                   <label class="form-group__label form-group__label--small">Telefone</label>
-                  <input type="text" id="edit-phone" class="form-group__input" />
+                  <input type="text" id="edit-phone" class="form-group__input phone-input__field" />
                 </div>
               </div>
 
@@ -121,7 +121,7 @@
                   <label class="form-group__label form-group__label--small">Localidade</label>
                   <input type="text" id="edit-city" class="form-group__input" />
                 </div>
-                <div class="form-group">
+                <div class="form-group select-group">
                   <label class="form-group__label form-group__label--small">País</label>
                   <select id="edit-country" class="form-group__select">
                     <option value="">Selecionar país</option>
@@ -368,9 +368,24 @@
                   </select>
                 </div>
               </div>
+              <div class="form-row">
+                <div class="form-group select-group">
+                  <label class="form-group__label form-group__label--small">Tipo Identificação</label>
+                  <select id="edit-id-type" class="form-group__select">
+                    <option value="">Selecionar</option>
+                    <option value="cc">Cartão de Cidadão</option>
+                    <option value="passport">Passaporte</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-group__label form-group__label--small">Número Identificação</label>
+                  <input type="text" id="edit-id-number" class="form-group__input" />
+                </div>
+              </div>
               <div class="form-actions">
                 <button type="button" class="btn btn--primary" id="save-profile-btn">
-                  Guardar Dados de Conta
+                  <span class="spinner hidden" aria-hidden="true"></span>
+                  <span class="btn-text">Guardar Dados de Conta</span>
                 </button>
               </div>
 
@@ -408,7 +423,8 @@
 
               <div class="form-actions">
                 <button type="button" class="btn btn--primary" id="save-pw-btn">
-                  Guardar Alterações
+                  <span class="spinner hidden" aria-hidden="true"></span>
+                  <span class="btn-text">Guardar Alterações</span>
                 </button>
               </div>
 
@@ -526,7 +542,8 @@
               </label>
 
               <button class="btn btn--primary" type="submit">
-                ENVIAR PEDIDO DE ALTERAÇÃO
+                <span class="spinner hidden" aria-hidden="true"></span>
+                <span class="btn-text">ENVIAR PEDIDO DE ALTERAÇÃO</span>
               </button>
             </form>
           </div>
@@ -537,8 +554,7 @@
           <h3 class="section-heading">O MEU CARTÃO OCC</h3>
           <!-- OCC CARD -->
           <div class="occ-card hidden">
-            <img src="https://orbitur.staging-blendd.com/wp-content/uploads/2025/10/cartao-orbitur@2x.png"
-              alt="cartão OCC" class="occ-card__image" />
+            <img src="/wp-content/uploads/2025/12/occ-card.webp" alt="cartão OCC" class="occ-card__image" />
             <div class="occ-card__content">
               <div class="subsection-heading">NÚMERO MEMBRO OCC</div>
               <div class="subsection-heading__value" id="card-member">
@@ -561,7 +577,7 @@
                 <div class="member-details__col">
                   <div class="info-item">
                     <div class="info-item__label">Data de inscrição</div>
-                    <div class="info-item__value info-item__value--small">-</div>
+                    <div class="info-item__value info-item__value--small" id="card-start">-</div>
                   </div>
                   <div class="info-item">
                     <div class="info-item__label">Data de validade</div>
@@ -575,7 +591,7 @@
                 <button class="btn btn--primary">
                   FAZER DOWNLOAD DO CARTÃO
                 </button>
-                <button class="btn btn--primary btn--secondary">
+                <button class="btn btn--primary" id="renew-card-btn">
                   RENOVAR O MEU CARTÃO OCC
                 </button>
               </div>
@@ -888,10 +904,207 @@
                 <div class="form-group select-group">
                   <label class="form-group__label form-group__label--small">Nacionalidade*</label>
                   <select name="nationality" class="form-group__select" required>
-                    <option value="" disabled selected>Selecionar</option>
-                    <option selected>Portugal</option>
-                    <option>Spain</option>
-                    <option>France</option>
+                    <option value="1" selected>NOT ASSIGNED</option>
+                    <option value="2">PORTUGAL</option>
+                    <option value="3">SPAIN</option>
+                    <option value="4">GERMANY</option>
+                    <option value="5">AUSTRIA</option>
+                    <option value="6">BELGIUM</option>
+                    <option value="7">BOSNIA</option>
+                    <option value="8">BULGARIA</option>
+                    <option value="9">CANADA</option>
+                    <option value="10">CROATIA</option>
+                    <option value="11">DENMARK</option>
+                    <option value="12">UNITED STATES</option>
+                    <option value="13">FINLAND</option>
+                    <option value="14">FRANCE</option>
+                    <option value="15">UNITED KINGDOM</option>
+                    <option value="16">GREECE</option>
+                    <option value="17">NETHERLANDS</option>
+                    <option value="18">HUNGARY</option>
+                    <option value="19">ITALY</option>
+                    <option value="20">IRELAND</option>
+                    <option value="21">LUXEMBOURG</option>
+                    <option value="22">NORWAY</option>
+                    <option value="23">POLAND</option>
+                    <option value="24">CZECH REPUBLIC</option>
+                    <option value="25">UGANDA</option>
+                    <option value="26">ROMANIA</option>
+                    <option value="27">SWEDEN</option>
+                    <option value="28">SWITZERLAND</option>
+                    <option value="29">MOROCCO</option>
+                    <option value="30">SLOVAKIA</option>
+                    <option value="31">ICELAND</option>
+                    <option value="32">LIECHTENSTEIN</option>
+                    <option value="33">TÜRKIYE</option>
+                    <option value="34">USBEQUISTAO</option>
+                    <option value="35">ARGENTINA</option>
+                    <option value="36">BRAZIL</option>
+                    <option value="37">MEXICO</option>
+                    <option value="38">VENEZUELA</option>
+                    <option value="39">ZAMBIA</option>
+                    <option value="40">JAPAN</option>
+                    <option value="41">ZIMBABWE</option>
+                    <option value="42">AUSTRALIA</option>
+                    <option value="43">NEW ZEALAND</option>
+                    <option value="44">TUVALU</option>
+                    <option value="45">PERU</option>
+                    <option value="46">RUSSIA</option>
+                    <option value="47">ISRAEL</option>
+                    <option value="48">COLOMBIA</option>
+                    <option value="49">BOLIVIA</option>
+                    <option value="50">URUGUAY</option>
+                    <option value="51">CHINA</option>
+                    <option value="52">INDIA</option>
+                    <option value="53">LITHUANIA</option>
+                    <option value="54">LATVIA</option>
+                    <option value="55">ALGERIA</option>
+                    <option value="56">TUNISIA</option>
+                    <option value="57">EGYPT</option>
+                    <option value="58">PARAGUAY</option>
+                    <option value="59">HONDURAS</option>
+                    <option value="60">EL SALVADOR</option>
+                    <option value="61">CUBA</option>
+                    <option value="62">PUERTO RICO</option>
+                    <option value="63">PHILIPPINES</option>
+                    <option value="64">AFGHANISTAN</option>
+                    <option value="65">ALBANIA</option>
+                    <option value="66">ANDORRA</option>
+                    <option value="67">ARMENIA</option>
+                    <option value="68">BELARUS</option>
+                    <option value="69">CAMEROON</option>
+                    <option value="70">CYPRUS</option>
+                    <option value="71">CHILE</option>
+                    <option value="72">MOZAMBIQUE</option>
+                    <option value="73">COSTA RICA</option>
+                    <option value="74">ECUADOR</option>
+                    <option value="75">SLOVENIA</option>
+                    <option value="76">ESTONIA</option>
+                    <option value="77">CAPE VERDE</option>
+                    <option value="78">SAO TOME</option>
+                    <option value="79">GUINE</option>
+                    <option value="80">EQUATORIAL GUINEA</option>
+                    <option value="81">HAITI</option>
+                    <option value="82">JAMAICA</option>
+                    <option value="83">JORDAN</option>
+                    <option value="84">MACEDONIA</option>
+                    <option value="85">MALTA</option>
+                    <option value="86">ANGOLA</option>
+                    <option value="87">PAKISTAN</option>
+                    <option value="88">PANAMA</option>
+                    <option value="89">SYRIA</option>
+                    <option value="90">SERBIA AND MONTENEGRO</option>
+                    <option value="91">SOUTH AFRICA</option>
+                    <option value="92">THAILAND</option>
+                    <option value="93">TAIWAN</option>
+                    <option value="94">UKRAINE</option>
+                    <option value="95">VIETNAM</option>
+                    <option value="96">SINGAPORE</option>
+                    <option value="97">MONACO</option>
+                    <option value="98">SAN MARINO</option>
+                    <option value="99">FAROE ISLANDS</option>
+                    <option value="100">GIBRALTAR</option>
+                    <option value="101">ANTIGUA AND BARBUDA</option>
+                    <option value="102">DUTCH ANTILLES</option>
+                    <option value="103">SAUDI ARABIA</option>
+                    <option value="104">AZERBEIJAO</option>
+                    <option value="105">BAHAMAS</option>
+                    <option value="106">BANGLADESH</option>
+                    <option value="107">BARBADOS</option>
+                    <option value="108">BAREM</option>
+                    <option value="109">BELIZE</option>
+                    <option value="110">BERMUDA</option>
+                    <option value="111">BOTSWANA</option>
+                    <option value="112">BURKINA FASO</option>
+                    <option value="113">BURUNDI</option>
+                    <option value="114">BUTAA</option>
+                    <option value="115">CAMBODIA</option>
+                    <option value="116">QATAR</option>
+                    <option value="117">KAZAKHSTAN</option>
+                    <option value="118">CENTRAL AFRICAN REPUBLIC</option>
+                    <option value="119">CHAD</option>
+                    <option value="120">CONGO</option>
+                    <option value="121">CONGO (DEMOCRATIC REPUBLIC)</option>
+                    <option value="122">KOREA (PEOPLE'S DEMOCRATIC REPUBLIC)</option>
+                    <option value="123">SOUTH KOREA</option>
+                    <option value="124">IVORY COAST</option>
+                    <option value="125">DOMINICA</option>
+                    <option value="126">UNITED ARAB EMIRATES</option>
+                    <option value="127">ETHIOPIA</option>
+                    <option value="128">GABON</option>
+                    <option value="129">GAMBIA</option>
+                    <option value="130">GHANA</option>
+                    <option value="131">GEORGIA</option>
+                    <option value="132">GRENADE</option>
+                    <option value="133">GREENLAND</option>
+                    <option value="134">GUADALUPE</option>
+                    <option value="135">GUATEMALA</option>
+                    <option value="136">GUIANA</option>
+                    <option value="137">FRENCH GUIANA</option>
+                    <option value="138">GUINEA-BISSAU</option>
+                    <option value="139">HONG KONG</option>
+                    <option value="140">YEMEN</option>
+                    <option value="141">ISLE OF MAN</option>
+                    <option value="142">NORFOLK ISLAND</option>
+                    <option value="143">CAYMAN ISLANDS</option>
+                    <option value="144">FALKLAND ISLANDS (MALVINAS)</option>
+                    <option value="145">FIJI ISLANDS</option>
+                    <option value="146">VIRGIN ISLANDS (BRITISH)</option>
+                    <option value="147">VIRGIN ISLANDS (UNITED STATES)</option>
+                    <option value="148">INDONESIA</option>
+                    <option value="149">IRAN (ISLAMIC REPUBLIC)</option>
+                    <option value="150">IRAQ</option>
+                    <option value="151">KUWAIT</option>
+                    <option value="152">LAOS (DEMOCRATIC PEOPLE'S REP)</option>
+                    <option value="153">LESOTHO</option>
+                    <option value="154">LEBANON</option>
+                    <option value="155">LIBERIA</option>
+                    <option value="156">LIBYA</option>
+                    <option value="157">MACAO</option>
+                    <option value="158">MADAGASCAR</option>
+                    <option value="159">MALAYSIA</option>
+                    <option value="160">MALAWI</option>
+                    <option value="161">MALDIVES</option>
+                    <option value="162">MALI</option>
+                    <option value="163">MARTINIQUE</option>
+                    <option value="164">MOLDOVA</option>
+                    <option value="165">MONGOLIA</option>
+                    <option value="166">MONTENEGRO</option>
+                    <option value="167">MYANMAR</option>
+                    <option value="168">NAMIBIA</option>
+                    <option value="169">NEPAL</option>
+                    <option value="170">NICARAGUA</option>
+                    <option value="171">NIGER</option>
+                    <option value="172">NIGERIA</option>
+                    <option value="173">OMAN</option>
+                    <option value="174">PALAU</option>
+                    <option value="175">PAPUA NEW GUINEA</option>
+                    <option value="176">FRENCH POLYNESIA</option>
+                    <option value="177">KENYA</option>
+                    <option value="178">KYRGYZSTAN</option>
+                    <option value="179">DOMINICAN REPUBLIC</option>
+                    <option value="180">RWANDA</option>
+                    <option value="181">SAMOA</option>
+                    <option value="182">SAINT HELENA</option>
+                    <option value="183">SAO MARTINHO (FRENCH SIDE)</option>
+                    <option value="184">WESTERN SARA</option>
+                    <option value="185">SENEGAL</option>
+                    <option value="186">SIERRA LEONE</option>
+                    <option value="187">SEYCHELLES</option>
+                    <option value="188">SOMALIA</option>
+                    <option value="189">SRI LANKA</option>
+                    <option value="190">SWAZILAND</option>
+                    <option value="191">SUDAN</option>
+                    <option value="192">SURINAME</option>
+                    <option value="193">TAJIKISTAN</option>
+                    <option value="194">TANZANIA</option>
+                    <option value="195">OCCUPIED PALESTINIAN TERRITORY</option>
+                    <option value="196">EAST TIMOR</option>
+                    <option value="197">TOGO</option>
+                    <option value="198">TRINITY AND TOBAGO</option>
+                    <option value="199">TURKMENISTAN</option>
+                    <option value="200">MAURICIA</option>
+                    <option value="201">MAURITANIA</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -905,9 +1118,8 @@
                   <label class="form-group__label form-group__label--small">Tipo Identificação*</label>
                   <select name="id_type" class="form-group__select" required>
                     <option value="" disabled selected>Selecionar</option>
-                    <option selected>Cartão de Cidadão</option>
-                    <option>Passaporte</option>
-                    <option>Outro Documento</option>
+                    <option value="cc">Cartão de Cidadão</option>
+                    <option value="passport">Passaporte</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -957,7 +1169,8 @@
               <!-- Submit -->
               <div class="occ-register__actions">
                 <button type="submit" class="btn btn--primary">
-                  ENVIAR PEDIDO DE INSCRIÇÃO
+                  <span class="spinner hidden" aria-hidden="true"></span>
+                  <span class="btn-text">ENVIAR PEDIDO DE INSCRIÇÃO</span>
                 </button>
               </div>
             </form>
