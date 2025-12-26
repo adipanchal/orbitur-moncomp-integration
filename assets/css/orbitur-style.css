@@ -234,7 +234,10 @@ button {
 }
 
 /* Form Inputs */
-.auth-form .form-group__input,
+.auth-form .form-group__input:not(.phone-input__field) {
+  padding: 16px 20px !important;
+}
+
 .auth-form .form-group__select {
   padding: 16px 20px !important;
 }

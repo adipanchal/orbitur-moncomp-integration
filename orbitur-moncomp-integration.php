@@ -40,33 +40,20 @@ add_action('wp_enqueue_scripts', function () {
             );
         }
 
-        // Enqueue intl-tel-input CSS
-        wp_enqueue_style(
-            'intl-tel-input-css',
-            'https://cdn.jsdelivr.net/npm/intl-tel-input@25.10.1/build/css/intlTelInput.css',
-            [],
-            '25.10.1'
-        );
+
     }
 
     /* ---------- AUTH FORMS JS (login + register) ---------- */
     if (is_page(['area-cliente', 'registo-de-conta'])) {
 
-        // Enqueue intl-tel-input JS
-        wp_enqueue_script(
-            'intl-tel-input-js',
-            'https://cdn.jsdelivr.net/npm/intl-tel-input@25.10.1/build/js/intlTelInput.min.js',
-            [],
-            '25.10.1',
-            true
-        );
+
 
         $js_forms = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-forms.js';
         if (file_exists($js_forms)) {
             wp_enqueue_script(
                 'orbitur-forms',
                 ORBITUR_PLUGIN_URL . 'assets/js/orbitur-forms.js',
-                ['jquery', 'intl-tel-input-js'],
+                ['jquery'],
                 filemtime($js_forms),
                 true
             );
@@ -77,38 +64,21 @@ add_action('wp_enqueue_scripts', function () {
                 'redirect' => site_url('/area-cliente/bem-vindo/')
             ]);
 
-            // Enqueue phone input initialization
-            $js_phone = ORBITUR_PLUGIN_DIR . 'assets/js/intl-tel-input-init.js';
-            if (file_exists($js_phone)) {
-                wp_enqueue_script(
-                    'intl-tel-input-init',
-                    ORBITUR_PLUGIN_URL . 'assets/js/intl-tel-input-init.js',
-                    ['jquery', 'intl-tel-input-js'],
-                    filemtime($js_phone),
-                    true
-                );
-            }
+
         }
     }
 
     /* ---------- DASHBOARD JS (ONLY bem-vindo) ---------- */
     if (is_page('bem-vindo')) {
 
-        // Enqueue intl-tel-input JS for dashboard phone fields
-        wp_enqueue_script(
-            'intl-tel-input-js',
-            'https://cdn.jsdelivr.net/npm/intl-tel-input@25.10.1/build/js/intlTelInput.min.js',
-            [],
-            '25.10.1',
-            true
-        );
+
 
         $js = ORBITUR_PLUGIN_DIR . 'assets/js/orbitur-dashboard.js';
         if (file_exists($js)) {
             wp_enqueue_script(
                 'orbitur-dashboard',
                 ORBITUR_PLUGIN_URL . 'assets/js/orbitur-dashboard.js',
-                ['jquery', 'intl-tel-input-js'],
+                ['jquery'],
                 filemtime($js),
                 true
             );
@@ -119,17 +89,7 @@ add_action('wp_enqueue_scripts', function () {
                 'area_client_url' => site_url('/area-cliente/')
             ]);
 
-            // Enqueue phone input initialization for dashboard
-            $js_phone = ORBITUR_PLUGIN_DIR . 'assets/js/intl-tel-input-init.js';
-            if (file_exists($js_phone)) {
-                wp_enqueue_script(
-                    'intl-tel-input-init',
-                    ORBITUR_PLUGIN_URL . 'assets/js/intl-tel-input-init.js',
-                    ['jquery', 'intl-tel-input-js'],
-                    filemtime($js_phone),
-                    true
-                );
-            }
+
         }
     }
 

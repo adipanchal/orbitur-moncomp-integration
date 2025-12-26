@@ -153,6 +153,30 @@ function orbitur_forgot_password_ajax()
         'message' => 'Enviámos um email para redefinir a sua palavra-passe.'
     ]);
 }
+add_action('wp_ajax_nopriv_orbitur_reset_password_token', 'orbitur_reset_password_token');
+add_action('wp_ajax_orbitur_reset_password_token', 'orbitur_reset_password_token');
+
+function orbitur_reset_password_token()
+{
+    $token = sanitize_text_field($_POST['token'] ?? '');
+    $password = trim($_POST['password'] ?? '');
+
+    if (!$token || !$password) {
+        wp_send_json_error('Dados inválidos');
+    }
+
+    if (strlen($password) < 6 || strlen($password) > 20) {
+        wp_send_json_error('A palavra-passe deve ter entre 6 e 20 caracteres.');
+    }
+
+    $res = orbitur_moncomp_reset_password_with_token($token, $password);
+
+    if (is_wp_error($res)) {
+        wp_send_json_error($res->get_error_message());
+    }
+
+    wp_send_json_success(true);
+}
 /* ======================================================
  * REGISTER (NO login, NO idSession)
  * ====================================================== */
@@ -327,7 +351,8 @@ add_action('wp_ajax_orbitur_get_profile', function () {
     wp_send_json_success($profile);
 });
 /**
- * AJAX: Get OCC membership status (Live from MonCompte)
+ * AJAX: Get OCC membership status
+ * Syncs with the "Calendar Year" business rule (Jan 1st to Dec 31st)
  */
 add_action('wp_ajax_orbitur_get_occ_status', function () {
     check_ajax_referer('orbitur_dashboard_nonce', 'nonce');
@@ -337,72 +362,49 @@ add_action('wp_ajax_orbitur_get_occ_status', function () {
     }
 
     $uid = get_current_user_id();
+    $idSession = get_user_meta($uid, 'moncomp_idSession', true);
 
-    // Always start from a safe default response
+    // Default response if no membership is found
     $response = [
         'has_membership' => false,
         'member_number' => '',
-        'status' => '',
+        'status' => 'inactive',
+        'start_date' => '',
         'valid_until' => '',
         'email' => '',
     ];
 
-    $idSession = get_user_meta($uid, 'moncomp_idSession', true);
     if (!$idSession) {
         wp_send_json_success($response);
     }
 
+    // 1. Fetch Person Data (Contains idFid and Status)
     $person = orbitur_moncomp_get_person($idSession);
-
-    // 🚨 CRITICAL GUARD
-    if (is_wp_error($person) || !is_array($person)) {
+    if (is_wp_error($person)) {
         wp_send_json_success($response);
     }
 
-    $occId = $person['occ_id'] ?? '';
-    $occStatus = $person['occ_status'] ?? '';
-    $occValid = $person['occ_valid'] ?? '';
+    // 2. Fetch Fidelity Stream (Contains the card start/issue date)
+    $fid = orbitur_moncomp_get_fid_stream($idSession);
 
-    // Membership exists ONLY if idFid exists
-    if (!$occId) {
-        wp_send_json_success($response);
-    }
+    if (!empty($person['occ_id'])) {
+        $response['has_membership'] = true;
+        $response['member_number'] = $person['occ_id'];
+        $response['email'] = $person['email'];
+        $response['status'] = ($person['occ_status'] === 'active') ? 'active' : 'inactive';
 
-    // Membership detected
-    $response['has_membership'] = true;
-    $response['member_number'] = $occId;
-    $response['email'] = $person['email'] ?? '';
-    $response['start_date'] = '';
+        // 3. Apply the Calendar Year Expiry Rule
+        if (!is_wp_error($fid) && !empty($fid['begin'])) {
+            try {
+                $dtStart = new DateTime($fid['begin']);
+                $response['start_date'] = $dtStart->format('Y-m-d');
 
-    /**
-     * STATUS RULE (matches old site)
-     * Active ONLY if:
-     * - fidelity == true
-     * - AND validity date exists
-     */
-    if ($occStatus === 'active' && !empty($occValid)) {
-        $response['status'] = 'active';
-    } else {
-        $response['status'] = 'inactive';
-    }
-
-    /**
-     * EXPIRY DATE LOGIC (OLD SITE COMPATIBLE)
-     * MonCompte gives fidelityDate as START date.
-     * OCC validity = END OF SAME YEAR (December).
-     *
-     * Example:
-     * fidelityDate = 2025-10-22
-     * expiry       = 12/2025
-     */
-    if (!empty($occValid)) {
-        try {
-            $dt = new DateTime($occValid);
-            $year = $dt->format('Y');
-            $response['start_date'] = $dt->format(format: 'Y-m-d');
-            $response['valid_until'] = $year . '-12-31';
-        } catch (Exception $e) {
-            // silently ignore
+                // FORCE EXPIRY: Valid until Dec 31st of the same calendar year
+                $year = $dtStart->format('Y');
+                $response['valid_until'] = $year . '-12-31';
+            } catch (Exception $e) {
+                // Fallback if parsing fails
+            }
         }
     }
 

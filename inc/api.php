@@ -159,6 +159,57 @@ if (!function_exists('orbitur_moncomp_reset_password')) {
         return true;
     }
 }
+function orbitur_moncomp_reset_password_with_token($token, $newPw)
+{
+    $endpoint = get_option('orbitur_moncomp_endpoint');
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+        . 'xmlns:web="http://webservices.multicamp.fr">'
+        . '<soapenv:Body>'
+        . '<web:resetPassword>'
+        . '<RqResetPassword>'
+        . '<token><![CDATA[' . $token . ']]></token>'
+        . '<newPw><![CDATA[' . $newPw . ']]></newPw>'
+        . '</RqResetPassword>'
+        . '</web:resetPassword>'
+        . '</soapenv:Body>'
+        . '</soapenv:Envelope>';
+
+    $res = wp_remote_post($endpoint, [
+        'headers' => [
+            'Content-Type' => 'text/xml; charset=utf-8',
+            'SOAPAction' => 'resetPassword',
+        ],
+        'body' => $xml,
+        'timeout' => 30,
+    ]);
+
+    if (is_wp_error($res)) {
+        return $res;
+    }
+
+    $body = wp_remote_retrieve_body($res);
+
+    // Remove namespaces
+    $clean = preg_replace('/(<\/?)[a-zA-Z0-9\-_]+:/', '$1', $body);
+    $xmlObj = simplexml_load_string($clean);
+
+    if (!$xmlObj) {
+        return new WP_Error('invalid_xml', 'Resposta inválida');
+    }
+
+    $result = $xmlObj->Body->resetPasswordResponse->result ?? null;
+
+    if (!$result || (int) $result->error !== 0) {
+        return new WP_Error(
+            'reset_failed',
+            (string) ($result->messError ?? 'Erro ao redefinir palavra-passe')
+        );
+    }
+
+    return true;
+}
 
 // Change PASSWORD (WSDL SAFE)
 function orbitur_moncomp_update_password($idSession, $oldPw, $newPw)

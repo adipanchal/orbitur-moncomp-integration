@@ -15,6 +15,7 @@
           <input type="text" name="last_name" class="form-group__input" placeholder="Apelido" required />
         </div>
       </div>
+
       <!-- Civility Field -->
       <div class="form-group select-group">
         <label class="form-group__label">Tratamento*</label>
@@ -34,10 +35,7 @@
       <!-- Phone Field with Country Code -->
       <div class="form-group">
         <label class="form-group__label">TELEFONE*</label>
-        <div class="phone-input">
-          <input type="tel" name="phone" class="form-group__input phone-input__field" placeholder="Telemóvel"
-            required />
-        </div>
+        <input type="tel" name="phone" class="form-group__input phone-input__field" placeholder="Telemóvel" required />
       </div>
 
       <!-- Address Field -->

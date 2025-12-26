@@ -179,7 +179,20 @@
           $("#edit-firstname").val(d.first || "");
           $("#edit-lastname").val(d.last || "");
           $("#edit-email").val(d.email || "");
-          $("#edit-phone").val(d.phone || "");
+          const phoneVal = d.phone || "";
+          const $phoneInput = $("#edit-phone");
+          $phoneInput.val(phoneVal);
+          try {
+            const iti = $phoneInput.data("iti");
+            if (iti) {
+              if (phoneVal && phoneVal.indexOf("+") === 0) {
+                iti.setNumber(phoneVal);
+              } else if (d.country) {
+                iti.setCountry((d.country || "PT").toLowerCase());
+                // If phone doesn't have +, leave as is (iti handles it or user provided local)
+              }
+            }
+          } catch (e) { }
           $("#edit-address").val(d.address || "");
           $("#edit-zipcode").val(d.zipcode || "");
           $("#edit-city").val(d.city || "");
@@ -270,7 +283,19 @@
         $("#edit-firstname").val(d.first || "");
         $("#edit-lastname").val(d.last || "");
         $("#edit-email").val(d.email || "");
-        $("#edit-phone").val(d.phone || "");
+        const phoneVal = d.phone || "";
+        const $phoneInput = $("#edit-phone");
+        $phoneInput.val(phoneVal);
+        try {
+          const iti = $phoneInput.data("iti");
+          if (iti) {
+            if (phoneVal && phoneVal.indexOf("+") === 0) {
+              iti.setNumber(phoneVal);
+            } else if (d.country) {
+              iti.setCountry((d.country || "PT").toLowerCase());
+            }
+          }
+        } catch (e) { }
         $("#edit-address").val(d.address || "");
         $("#edit-zipcode").val(d.zipcode || "");
         $("#edit-city").val(d.city || "");
@@ -369,7 +394,10 @@
 
         $("#profile-name, #p-name").text(d.name || "—");
         $("#p-email").text(d.email || "—");
+
+        // Just display raw phone
         $("#p-phone").text(d.phone || "—");
+
         $("#p-address").text(d.morada_display || "—");
         $("#p-country").text(d.country || "—");
         $("#p-member").text(d.memberNumber || "—");
@@ -377,7 +405,10 @@
         $("#edit-firstname").val(d.first || "");
         $("#edit-lastname").val(d.last || "");
         $("#edit-email").val(d.email || "");
+
+        // Populate EDIT Phone Field (Raw)
         $("#edit-phone").val(d.phone || "");
+
         $("#edit-address").val(d.address || "");
         $("#edit-zipcode").val(d.zipcode || "");
         $("#edit-city").val(d.city || "");
@@ -407,7 +438,7 @@
       action: "orbitur_update_profile",
       nonce: NONCE,
       email: $("#edit-email").val(),
-      phone: $("#edit-phone").val(),
+      phone: $("#edit-phone").val(), // Send raw input
       address: $("#edit-address").val(),
       zipcode: $("#edit-zipcode").val(),
       city: $("#edit-city").val(),
@@ -476,8 +507,7 @@
 
     if (!list.length) {
       $container.html(
-        `<p class="empty-message">${
-          upcoming ? "Não há estadias próximas." : "Não há estadias anteriores."
+        `<p class="empty-message">${upcoming ? "Não há estadias próximas." : "Não há estadias anteriores."
         }</p>`
       );
       return;
@@ -506,9 +536,8 @@
         <div class="booking-item__card booking-item__card--date">
           <div class="booking-item__date">${(b.begin || "").split("T")[0]}</div>
         </div>
-        ${
-          upcoming
-            ? `<div class="booking-item__actions">
+        ${upcoming
+          ? `<div class="booking-item__actions">
                  <button
                    type="button"
                    class="btn btn--primary btn--manage"
@@ -516,7 +545,7 @@
                    GERIR RESERVA
                  </button>
                </div>`
-            : ""
+          : ""
         }
       </div>
     `;
@@ -666,25 +695,11 @@
     $form.find('[name="firstname"]').val(d.first || "");
     $form.find('[name="lastname"]').val(d.last || "");
     $form.find('[name="email"]').val(d.email || "");
-    // Prefer mobile if available, otherwise use phone
+
+    // Consistent phone loading
     const phoneVal = d.mobile || d.phone || "";
-    const $phoneInput = $form.find('[name="phone"]');
-    $phoneInput.val(phoneVal);
-    // If intl-tel-input instance exists, set number / country properly
-    try {
-      const iti = $phoneInput.data("iti");
-      if (iti) {
-        if (phoneVal && phoneVal.indexOf("+") === 0) {
-          iti.setNumber(phoneVal);
-        } else if (d.country) {
-          // set country (ISO2) then set local number
-          iti.setCountry((d.country || "PT").toLowerCase());
-          $phoneInput.val(phoneVal);
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
+    $form.find('[name="phone"]').val(phoneVal);
+
     $form.find('[name="address"]').val(d.address || "");
     $form.find('[name="zipcode"]').val(d.zipcode || "");
     $form.find('[name="city"]').val(d.city || "");
@@ -709,22 +724,6 @@
     setLoading($btn, true);
 
     const data = $form.serializeArray();
-    // Ensure phone is sent in international E.164 if intl helper available
-    if (typeof window.getInternationalPhoneNumber === "function") {
-      const intlPhone = window.getInternationalPhoneNumber(
-        $form.find('[name="phone"]')
-      );
-      // replace existing phone field in serialized array
-      let replaced = false;
-      for (let i = 0; i < data.length; i++) {
-        if (data[i].name === "phone") {
-          data[i].value = intlPhone || data[i].value;
-          replaced = true;
-          break;
-        }
-      }
-      if (!replaced) data.push({ name: "phone", value: intlPhone });
-    }
     data.push({ name: "action", value: "orbitur_occ_register" });
     data.push({ name: "nonce", value: orbitur_ajax.nonce });
 

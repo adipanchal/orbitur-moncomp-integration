@@ -368,20 +368,6 @@
                   </select>
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-group select-group">
-                  <label class="form-group__label form-group__label--small">Tipo Identificação</label>
-                  <select id="edit-id-type" class="form-group__select">
-                    <option value="">Selecionar</option>
-                    <option value="cc">Cartão de Cidadão</option>
-                    <option value="passport">Passaporte</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Número Identificação</label>
-                  <input type="text" id="edit-id-number" class="form-group__input" />
-                </div>
-              </div>
               <div class="form-actions">
                 <button type="button" class="btn btn--primary" id="save-profile-btn">
                   <span class="spinner hidden" aria-hidden="true"></span>
@@ -625,10 +611,8 @@
                 </div>
                 <div class="form-group">
                   <label class="form-group__label form-group__label--small">TELEFONE*</label>
-                  <div class="phone-input">
-                    <input type="tel" name="phone" class="form-group__input phone-input__field" placeholder="Telemóvel"
-                      required />
-                  </div>
+                  <input type="tel" name="phone" class="form-group__input phone-input__field" placeholder="Telemóvel"
+                    required />
                 </div>
               </div>
 

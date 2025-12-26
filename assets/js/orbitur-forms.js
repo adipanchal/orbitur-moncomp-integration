@@ -129,61 +129,65 @@
       $.post(orbitur_ajax.ajax_url, {
         action: "orbitur_get_form_nonce",
       }).done(function (n) {
-        if (!n || !n.success) {
-          showMessage($form, "Erro de segurança.", "error");
-          setLoading($form, false);
-          return;
-        }
+        try {
+          if (!n || !n.success) {
+            showMessage($form, "Erro de segurança.", "error");
+            setLoading($form, false);
+            return;
+          }
 
-        // STEP 2: build payload with fresh nonce
-        const data = {
-          action: "orbitur_register_ajax",
-          nonce: n.data.nonce,
-        };
+          // STEP 2: build payload with fresh nonce
+          const data = {
+            action: "orbitur_register_ajax",
+            nonce: n.data.nonce,
+          };
 
-        // Ensure phone is submitted in E.164 if intl-tel-input is available
-        $form.serializeArray().forEach(function (field) {
-          data[field.name] = field.value;
-        });
-        if (typeof window.getInternationalPhoneNumber === "function") {
-          // Replace phone with international format
-          data["phone"] =
-            window.getInternationalPhoneNumber($form.find('[name="phone"]')) ||
-            data["phone"];
-        }
+          // Ensure phone is submitted (Raw)
+          $form.serializeArray().forEach(function (field) {
+            data[field.name] = field.value;
+          });
+          // We removed the helper, so data['phone'] is already set by serializeArray
+          // Just ensuring logic remains clean if we need specific handling later.
+          data["phone"] = $form.find('[name="phone"]').val();
 
-        // STEP 3: submit register
-        $.post(orbitur_ajax.ajax_url, data)
-          .done(function (res) {
-            if (!res || !res.success) {
-              showMessage($form, res?.data || "Erro ao criar conta", "error");
-              setLoading($form, false);
-              return;
-            }
+          // STEP 3: submit register
+          $.post(orbitur_ajax.ajax_url, data)
+            .done(function (res) {
+              if (!res || !res.success) {
+                showMessage($form, res?.data || "Erro ao criar conta", "error");
+                setLoading($form, false);
+                return;
+              }
 
-            // TEMP DEV FLOW: show generated password inline
-            if (res.data && res.data.password) {
-              showMessage(
-                $form,
-                "Conta criada com sucesso. EMAIL: " +
+              // TEMP DEV FLOW: show generated password inline
+              if (res.data && res.data.password) {
+                showMessage(
+                  $form,
+                  "Conta criada com sucesso. EMAIL: " +
                   $form.find('[name="email"]').val() +
                   " PASSWORD: " +
                   res.data.password,
-                "success"
-              );
-            } else {
-              showMessage($form, "Conta criada com sucesso.", "success");
-            }
+                  "success"
+                );
+              } else {
+                showMessage($form, "Conta criada com sucesso.", "success");
+              }
 
-            // STEP 4: redirect to login page (after short delay)
-            setTimeout(function () {
-              window.location.href = res.data.redirect || "/area-cliente/";
-            }, 1200);
-          })
-          .fail(function () {
-            showMessage($form, "Erro de rede ao criar conta.", "error");
-            setLoading($form, false);
-          });
+              // STEP 4: redirect to login page (after short delay)
+              setTimeout(function () {
+                window.location.href = res.data.redirect || "/area-cliente/";
+              }, 1200);
+            })
+            .fail(function () {
+              showMessage($form, "Erro de rede ao criar conta.", "error");
+              setLoading($form, false);
+            });
+
+        } catch (e) {
+          console.error("Registration error:", e);
+          showMessage($form, "Erro interno ao processar registo.", "error");
+          setLoading($form, false);
+        }
       });
     });
 
@@ -199,10 +203,7 @@
       const payload = {
         action: "orbitur_update_profile",
         nonce: orbitur_dashboard.nonce,
-        phone:
-          typeof window.getInternationalPhoneNumber === "function"
-            ? window.getInternationalPhoneNumber($form.find('[name="phone"]'))
-            : $form.find('[name="phone"]').val(),
+        phone: $form.find('[name="phone"]').val(),
         address: $form.find('[name="address"]').val(),
         zipcode: $form.find('[name="zipcode"]').val(),
         city: $form.find('[name="city"]').val(),
