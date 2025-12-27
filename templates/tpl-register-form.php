@@ -7,19 +7,21 @@
       <!-- Name & Surname Row -->
       <div class="form-row">
         <div class="form-group">
-          <label class="form-group__label">NOME*</label>
-          <input type="text" name="first_name" class="form-group__input" placeholder="Nome" required />
+          <label class="form-group__label" for="reg_first_name">NOME*</label>
+          <input type="text" id="reg_first_name" name="first_name" class="form-group__input" placeholder="Nome"
+            required />
         </div>
         <div class="form-group">
-          <label class="form-group__label">APELIDO*</label>
-          <input type="text" name="last_name" class="form-group__input" placeholder="Apelido" required />
+          <label class="form-group__label" for="reg_last_name">APELIDO*</label>
+          <input type="text" id="reg_last_name" name="last_name" class="form-group__input" placeholder="Apelido"
+            required />
         </div>
       </div>
 
       <!-- Civility Field -->
       <div class="form-group select-group">
-        <label class="form-group__label">Tratamento*</label>
-        <select name="civility" class="form-group__select" required>
+        <label class="form-group__label" for="reg_civility">Tratamento*</label>
+        <select id="reg_civility" name="civility" class="form-group__select" required>
           <option value="">Selecionar</option>
           <option value="Mr.">Sr.</option>
           <option value="Ms.">Sra.</option>
@@ -28,37 +30,38 @@
       </div>
       <!-- Email Field -->
       <div class="form-group">
-        <label class="form-group__label">E-MAIL*</label>
-        <input type="email" name="email" class="form-group__input" placeholder="E-mail" required />
+        <label class="form-group__label" for="reg_email">E-MAIL*</label>
+        <input type="email" id="reg_email" name="email" class="form-group__input" placeholder="E-mail" required />
       </div>
 
       <!-- Phone Field with Country Code -->
       <div class="form-group">
         <label class="form-group__label">TELEFONE*</label>
-        <input type="tel" name="phone" class="form-group__input phone-input__field" placeholder="Telemóvel" required />
+        <input type="tel" name="phone" class="form-group__input" placeholder="Telemóvel" required />
       </div>
 
       <!-- Address Field -->
       <div class="form-group">
-        <label class="form-group__label">MORADA*</label>
-        <input type="text" name="address" class="form-group__input" placeholder="Morada" required />
+        <label class="form-group__label" for="reg_address">MORADA*</label>
+        <input type="text" id="reg_address" name="address" class="form-group__input" placeholder="Morada" required />
       </div>
 
       <!-- Postal Code & City Row -->
       <div class="form-row">
         <div class="form-group">
-          <label class="form-group__label">CÓDIGO POSTAL*</label>
-          <input type="text" name="postcode" class="form-group__input" placeholder="0000-000" required />
+          <label class="form-group__label" for="reg_postcode">CÓDIGO POSTAL*</label>
+          <input type="text" id="reg_postcode" name="postcode" class="form-group__input" placeholder="0000-000"
+            required />
         </div>
         <div class="form-group">
-          <label class="form-group__label">LOCALIDADE*</label>
-          <input type="text" name="city" class="form-group__input" placeholder="Localidade" required />
+          <label class="form-group__label" for="reg_city">LOCALIDADE*</label>
+          <input type="text" id="reg_city" name="city" class="form-group__input" placeholder="Localidade" required />
         </div>
       </div>
 
       <!-- Country Field -->
       <div class="form-group select-group">
-        <label class="form-group__label">PAÍS*</label>
+        <label class="form-group__label" for="pais-dropdown">PAÍS*</label>
         <select id="pais-dropdown" name="country" class="form-group__select" required>
           <option value="" disabled selected>Selecionar</option>
           <option value="AD">Andorra</option>
@@ -307,8 +310,8 @@
       <!-- Nationality & Date of Birth Row -->
       <div class="form-row">
         <div class="form-group select-group">
-          <label class="form-group__label">NACIONALIDADE*</label>
-          <select name="nationality" class="form-group__select" required>
+          <label class="form-group__label" for="reg_nationality">NACIONALIDADE*</label>
+          <select id="reg_nationality" name="nationality" class="form-group__select" required>
             <option value="1" selected>NOT ASSIGNED</option>
             <option value="2">PORTUGAL</option>
             <option value="3">SPAIN</option>
@@ -513,43 +516,45 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-group__label">DATA DE NASCIMENTO*</label>
-          <input type="date" name="dob" class="form-group__input" required />
+          <label class="form-group__label" for="reg_dob">DATA DE NASCIMENTO*</label>
+          <input type="date" id="reg_dob" name="dob" class="form-group__input" required />
         </div>
       </div>
 
       <!-- ID Type & ID Number Row -->
       <div class="form-row">
         <div class="form-group select-group">
-          <label class="form-group__label">TIPO IDENTIFICAÇÃO*</label>
-          <select name="id_type" class="form-group__select" required>
+          <label class="form-group__label" for="reg_id_type">TIPO IDENTIFICAÇÃO*</label>
+          <select id="reg_id_type" name="id_type" class="form-group__select" required>
             <option value="" disabled selected>Selecionar</option>
             <option value="cc">Cartão de Cidadão</option>
             <option value="passport">Passaporte</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-group__label">NÚMERO IDENTIFICAÇÃO*</label>
-          <input type="text" name="id_number" class="form-group__input" placeholder="Número Identificação" required />
+          <label class="form-group__label" for="reg_id_number">NÚMERO IDENTIFICAÇÃO*</label>
+          <input type="text" id="reg_id_number" name="id_number" class="form-group__input"
+            placeholder="Número Identificação" required />
         </div>
       </div>
 
       <!-- Tax ID Field -->
       <div class="form-group">
-        <label class="form-group__label">NÚMERO DE IDENTIFICAÇÃO FISCAL (NIF)</label>
-        <input type="text" name="tax_number" class="form-group__input" placeholder="000000000" />
+        <label class="form-group__label" for="reg_tax_number">NÚMERO DE IDENTIFICAÇÃO FISCAL (NIF)</label>
+        <input type="text" id="reg_tax_number" name="tax_number" class="form-group__input" placeholder="000000000" />
       </div>
       <!-- Password -->
       <div class="form-group">
-        <label class="form-group__label">PALAVRA-PASSE</label>
-        <input type="password" name="password" class="form-group__input" placeholder="Palavra-passe" required />
+        <label class="form-group__label" for="reg_password">PALAVRA-PASSE</label>
+        <input type="password" id="reg_password" name="password" class="form-group__input" placeholder="Palavra-passe"
+          required />
       </div>
       <!-- Privacy Policy Checkbox -->
       <div class="checkbox-label checkbox-label--with-link">
-        <input type="checkbox" name="privacy" class="checkbox-label__input" required />
-        <label class="checkbox-label__text">
+        <input type="checkbox" id="reg_privacy" name="privacy" class="checkbox-label__input" required />
+        <label class="checkbox-label__text" for="reg_privacy">
           Consinto o tratamento dos meus dados pessoais de acordo com a
-          <a href="#" class="checkbox-label__link">Política de Privacidade</a>.
+          <a href="/politica-de-privacidade/" class="checkbox-label__link">Política de Privacidade</a>.
         </label>
       </div>
 

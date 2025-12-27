@@ -118,6 +118,59 @@
   /* ----------------------------------------------------
    * Helpers
    * -------------------------------------------------- */
+  function getErrorMessage(res, defaultMsg) {
+    if (!res) return defaultMsg;
+    // Handle string response (malformed JSON)
+    if (typeof res === "string") {
+      try {
+        res = JSON.parse(res);
+      } catch (e) {
+        return defaultMsg;
+      }
+    }
+    // Handle res.data wrapper
+    if (res.data) {
+      if (typeof res.data === "string") return res.data;
+      if (res.data.message) return res.data.message;
+      if (res.data.error) return res.data.error; // Fallback
+    }
+    // Handle root level error (sometimes WP sends success:false, data:"msg")
+    if (!res.success && typeof res.data === "string") {
+      return res.data;
+    }
+
+    return defaultMsg;
+  }
+
+  function handleApiError(res, defaultMsg, $btn) {
+    const msg = getErrorMessage(res, defaultMsg);
+
+    // Check for session expiry code or keywords
+    const code = res && res.data && res.data.code ? res.data.code : "";
+    const isSessionError =
+      code === "session_expired" || msg.toLowerCase().indexOf("session") !== -1;
+
+    if (isSessionError) {
+      Modal.error(
+        msg || "Sessão expirada. Por favor faça login novamente."
+      ).then(() => {
+        // Explicitly logout to prevent redirect loops
+        $.post(AJAX_URL, {
+          action: "orbitur_logout",
+          nonce: NONCE,
+        }).always(function () {
+          window.location.href = LOGIN_URL;
+        });
+      });
+    } else {
+      Modal.error(msg);
+    }
+
+    if ($btn) {
+      setLoading($btn, false);
+    }
+  }
+
   function ajaxFail(msg) {
     Modal.error(msg || "Erro de rede.");
   }
@@ -192,7 +245,7 @@
                 // If phone doesn't have +, leave as is (iti handles it or user provided local)
               }
             }
-          } catch (e) { }
+          } catch (e) {}
           $("#edit-address").val(d.address || "");
           $("#edit-zipcode").val(d.zipcode || "");
           $("#edit-city").val(d.city || "");
@@ -295,14 +348,16 @@
               iti.setCountry((d.country || "PT").toLowerCase());
             }
           }
-        } catch (e) { }
+        } catch (e) {}
         $("#edit-address").val(d.address || "");
         $("#edit-zipcode").val(d.zipcode || "");
         $("#edit-city").val(d.city || "");
         $("#edit-country").val(d.country || "");
       })
-      .fail(function () {
-        ajaxFail("Erro de rede ao carregar perfil.");
+      .fail(function (xhr) {
+        ajaxFail(
+          getErrorMessage(xhr.responseJSON, "Erro de rede ao carregar perfil.")
+        );
       });
   }
 
@@ -313,7 +368,7 @@
     })
       .done(function (res) {
         if (!res.success) {
-          ajaxFail("Erro ao carregar reservas.");
+          ajaxFail(getErrorMessage(res, "Erro ao carregar reservas."));
           return;
         }
 
@@ -323,8 +378,13 @@
         renderBookings(State.bookings.upcoming, "#bookings-upcoming", true);
         renderBookings(State.bookings.past, "#bookings-past", false);
       })
-      .fail(function () {
-        ajaxFail("Erro de rede ao carregar reservas.");
+      .fail(function (xhr) {
+        ajaxFail(
+          getErrorMessage(
+            xhr.responseJSON,
+            "Erro de rede ao carregar reservas."
+          )
+        );
       });
   }
 
@@ -414,8 +474,10 @@
         $("#edit-city").val(d.city || "");
         $("#edit-country").val(d.country || "");
       })
-      .fail(function () {
-        ajaxFail("Erro de rede ao carregar perfil.");
+      .fail(function (xhr) {
+        ajaxFail(
+          getErrorMessage(xhr.responseJSON, "Erro de rede ao carregar perfil.")
+        );
       });
   }
 
@@ -446,8 +508,7 @@
     })
       .done(function (res) {
         if (!res.success) {
-          Modal.error("Erro ao guardar perfil.");
-          setLoading($btn, false);
+          handleApiError(res, "Erro ao guardar perfil.", $btn);
           return;
         }
         Modal.success("Perfil atualizado.");
@@ -456,9 +517,18 @@
         refreshProfile(); // Refresh only profile data
         setLoading($btn, false);
       })
-      .fail(function () {
-        ajaxFail("Erro ao guardar perfil.");
-        setLoading($btn, false);
+      .fail(function (xhr, status, error) {
+        // Try to get JSON from xhr
+        if (xhr.responseJSON) {
+          handleApiError(
+            xhr.responseJSON,
+            "Erro ao guardar perfil (API).",
+            $btn
+          );
+        } else {
+          ajaxFail("Erro ao guardar perfil (" + status + ").");
+          setLoading($btn, false);
+        }
       });
   });
 
@@ -485,16 +555,16 @@
     })
       .done(function (res) {
         if (!res.success) {
-          Modal.error(res.data || "Erro ao alterar palavra-passe");
-          setLoading($btn, false);
+          handleApiError(res, "Erro ao alterar palavra-passe", $btn);
           return;
         }
 
-        Modal.success("Palavra-passe alterada com sucesso.");
-        window.location.href = res.data.redirect;
+        Modal.success("Palavra-passe alterada com sucesso.").then(function () {
+          window.location.href = res.data.redirect;
+        });
       })
       .fail(function () {
-        Modal.error("Erro de rede.");
+        Modal.error("Erro de rede ao alterar palavra-passe.");
         setLoading($btn, false);
       });
   });
@@ -507,7 +577,8 @@
 
     if (!list.length) {
       $container.html(
-        `<p class="empty-message">${upcoming ? "Não há estadias próximas." : "Não há estadias anteriores."
+        `<p class="empty-message">${
+          upcoming ? "Não há estadias próximas." : "Não há estadias anteriores."
         }</p>`
       );
       return;
@@ -536,8 +607,9 @@
         <div class="booking-item__card booking-item__card--date">
           <div class="booking-item__date">${(b.begin || "").split("T")[0]}</div>
         </div>
-        ${upcoming
-          ? `<div class="booking-item__actions">
+        ${
+          upcoming
+            ? `<div class="booking-item__actions">
                  <button
                    type="button"
                    class="btn btn--primary btn--manage"
@@ -545,7 +617,7 @@
                    GERIR RESERVA
                  </button>
                </div>`
-          : ""
+            : ""
         }
       </div>
     `;
@@ -562,7 +634,7 @@
     })
       .done(function (res) {
         if (!res.success) {
-          ajaxFail("Erro ao carregar reservas.");
+          ajaxFail(getErrorMessage(res, "Erro ao carregar reservas."));
           return;
         }
 
@@ -574,8 +646,13 @@
 
         $(".tabs__btn[data-list='upcoming']").click();
       })
-      .fail(function () {
-        ajaxFail("Erro de rede ao carregar reservas.");
+      .fail(function (xhr) {
+        ajaxFail(
+          getErrorMessage(
+            xhr.responseJSON,
+            "Erro de rede ao carregar reservas."
+          )
+        );
       });
   }
 
@@ -733,7 +810,7 @@
         $form.trigger("reset");
         // Removed call to updateOccUI as per instructions
       } else {
-        Modal.error("Erro ao enviar pedido.");
+        handleApiError(r, "Erro ao enviar pedido.", $btn);
       }
       setLoading($btn, false);
     });

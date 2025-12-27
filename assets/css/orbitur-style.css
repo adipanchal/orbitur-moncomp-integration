@@ -143,6 +143,10 @@ button {
   border-color: var(--color-primary) !important;
 }
 
+.btn:hover {
+  color: var(--color-primary) !important;
+}
+
 .btn--primary:hover {
   background-color: var(--color-white) !important;
   color: var(--color-primary) !important;
@@ -182,6 +186,80 @@ button {
   border-top-color: transparent !important;
 }
 
+
+/* Message Box */
+
+.orbitur-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.orbitur-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+
+.orbitur-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+}
+
+.orbitur-modal-title {
+  margin-top: 0 !important;
+}
+
+.orbitur-modal__close {
+  font-size: 28px !important;
+  cursor: pointer !important;
+}
+
+.orbitur-modal__box {
+  position: relative;
+  max-width: 420px;
+  margin: 10vh auto;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.orbitur-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.orbitur-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.orbitur-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+}
+
+.orbitur-modal__box {
+  position: relative;
+  max-width: 420px;
+  margin: 10vh auto;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.orbitur-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 /* ============================================
    FORMS
    ============================================ */
@@ -192,10 +270,10 @@ button {
   color: var(--color-text-secondary);
 }
 
-.auth-form--login,
+/* .auth-form--login,
 .auth-form--forgot {
   max-width: 400px;
-}
+} */
 
 .auth-form__fields {
   display: flex;
@@ -234,10 +312,7 @@ button {
 }
 
 /* Form Inputs */
-.auth-form .form-group__input:not(.phone-input__field) {
-  padding: 16px 20px !important;
-}
-
+.auth-form .form-group__input,
 .auth-form .form-group__select {
   padding: 16px 20px !important;
 }
@@ -341,29 +416,6 @@ button {
 .phone-input__field {
   flex: 1;
   padding-left: 116px !important;
-}
-
-.iti__flag {
-  box-shadow: none !important;
-  border-radius: 0 !important;
-}
-
-.iti {
-  width: 100%;
-}
-
-.iti__search-input {
-  padding: 12px 12px 12px 30px !important;
-}
-
-.iti__arrow {
-  display: none;
-}
-
-.iti__selected-country::after {
-  content: url('https://orbitur.staging-blendd.com/wp-content/uploads/2025/11/arrow-telemovel.svg');
-  margin-left: 10px;
-  margin-top: -5px;
 }
 
 /* ============================================
@@ -622,7 +674,7 @@ button {
   width: 100% !important;
   max-width: 258px !important;
   padding: 22px 15px !important;
-  border: 1.5px solid var(--color-border-gray) !important;
+  border: 2px solid var(--color-border-gray) !important;
   background: var(--color-white) !important;
   border-radius: var(--radius-sm) !important;
   cursor: pointer !important;
@@ -817,7 +869,7 @@ button {
 
 .member-details__col {
   display: flex;
-  gap: var(--spacing-2xl);
+  gap: var(--spacing-lg) var(--spacing-2xl);
   flex-wrap: wrap;
 }
 
@@ -976,133 +1028,145 @@ button {
 /* Tablets (max-width: 1024px) */
 @media (max-width: 1024px) {
   .booking-item__card--date {
-    padding-left: var(--spacing-md);
-  }
-
-  #bookings-past .booking-item {
-    grid-template-columns: 1fr;
+    padding-left: var(--spacing-md) !important;
   }
 
   .booking-list {
-    gap: var(--spacing-xl);
+    gap: var(--spacing-xl) !important;
   }
 }
 
 /* Mobile & Tablets (max-width: 767px) */
 @media (max-width: 767px) {
   .dashboard {
-    flex-direction: column;
+    flex-direction: column !important;
   }
 
   .dashboard__main {
-    width: 100%;
+    width: 100% !important;
   }
 
   .dashboard__sidebar {
-    width: 100%;
+    width: 100% !important;
   }
 
   .dashboard__content {
-    flex-direction: column;
+    flex-direction: column !important;
   }
 
   .content-panel {
-    width: 100%;
+    width: 100% !important;
   }
 
   .section-heading {
-    margin-bottom: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl) !important;
   }
 
   .form-row,
   .auth-form__fields .form-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .button-group {
-    flex-direction: column;
+    flex-direction: column !important;
   }
 
   .info-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .manage-reserva__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .content-panel__subheading {
-    margin-top: -22px;
+    margin-top: -22px !important;
   }
 }
 
 /* Mobile (max-width: 720px) */
 @media (max-width: 720px) {
   .list-header {
-    display: none;
+    gap: var(--spacing-md);
+    display: flex !important;
+    justify-content: space-between !important;
   }
 
   .booking-item {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-sm);
-    align-items: start;
+    grid-template-columns: 1fr !important;
+    gap: var(--spacing-sm) !important;
+    align-items: start !important;
+  }
+
+  .booking-item {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 12px 10px !important;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-input);
+  }
+
+  .booking-item__card {
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  .booking-item__card.booking-item__card--date {
+    flex: none !important;
   }
 
   .booking-item__actions {
-    justify-content: flex-start;
+    justify-content: flex-start !important;
   }
 
   .btn--manage {
-    padding: var(--spacing-md) 10px;
+    padding: var(--spacing-md) 10px !important;
   }
 
   .tabs {
-    max-width: 100%;
+    max-width: 100% !important;
   }
 
   .tabs__btn {
-    max-width: 100%;
+    max-width: 100% !important;
   }
 }
 
 /* Small Mobile (max-width: 600px) */
 @media (max-width: 600px) {
   .tabs {
-    flex-direction: inherit;
-    max-width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .tabs__btn {
-    min-width: 100%;
+    flex-direction: inherit !important;
+    max-width: 100% !important;
+    flex-wrap: wrap !important;
   }
 
   .auth-form__fields .form-row {
-    flex-direction: column;
-    gap: 20px;
+    flex-direction: column !important;
+    gap: 20px !important;
   }
 
   .phone-input {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: column !important;
+    align-items: stretch !important;
   }
 
   .phone-input__code {
-    width: 100%;
+    width: 100% !important;
   }
 
   .discount-list {
-    gap: var(--spacing-2xl);
-    margin-top: var(--spacing-lg);
+    gap: var(--spacing-2xl) !important;
+    margin-top: var(--spacing-lg) !important;
   }
 
   .discount-item {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-md) !important;
   }
 
   .discount-item__logo {
-    width: 100%;
-    height: auto;
+    width: 100% !important;
+    height: auto !important;
   }
 }

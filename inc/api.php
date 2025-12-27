@@ -66,7 +66,7 @@ function orbitur_moncomp_login($email, $password)
         return new WP_Error('curl_error', $curlErr ?: 'Empty response');
     }
 
-    orbitur_log("LOGIN RAW RESPONSE:\n" . $response);
+    // orbitur_log("LOGIN RAW RESPONSE:\n" . $response);
 
     // Handle MonCompte error codes
     if (preg_match('/<error>(\d+)<\/error>/', $response, $m) && (int) $m[1] !== 0) {

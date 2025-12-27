@@ -34,8 +34,8 @@ if (function_exists('nocache_headers')) {
 
   <!-- Login Options (Remember & Forgot Password) -->
   <div class="auth-form__options">
-    <label class="checkbox-label">
-      <input type="checkbox" name="remember" value="1" class="checkbox-label__input" />
+    <label class="checkbox-label" for="orbitur_remember">
+      <input type="checkbox" id="orbitur_remember" name="remember" value="1" class="checkbox-label__input" />
       <span class="checkbox-label__text">Lembrar-me</span>
     </label>
     <a href="#" class="auth-form__link" id="orbitur-show-forgot">Esqueceu-se da palavra-passe?</a>
@@ -51,7 +51,7 @@ if (function_exists('nocache_headers')) {
 </form>
 
 <form id="orbitur-forgot-form" class="auth-form auth-form--forgot hidden">
-  <label for="orbitur_forgot_email" class="form-group__label">Email</label>
+  <label for="forgot-email" class="form-group__label">Email</label>
   <input id="forgot-email" type="email" name="email" class="form-group__input" placeholder="email" required />
   <div style="margin-top:.5rem;display:flex;gap:.5rem;">
     <button type="submit" class="btn btn--primary">

@@ -1,6 +1,27 @@
 (function ($) {
   "use strict";
 
+  /* ----------------------------------------------------
+   * Helpers
+   * -------------------------------------------------- */
+  function getErrorMessage(res, defaultMsg) {
+    if (!res) return defaultMsg;
+    // Handle string response (malformed JSON)
+    if (typeof res === "string") {
+      try {
+        res = JSON.parse(res);
+      } catch (e) {
+        return defaultMsg;
+      }
+    }
+    if (res.data) {
+      if (typeof res.data === "string") return res.data;
+      if (res.data.message) return res.data.message;
+      if (res.data.error) return res.data.error;
+    }
+    return defaultMsg;
+  }
+
   $(document).ready(function () {
     function showMessage($form, msg, type) {
       var $box = $form.find(".orbitur-form-msg");
@@ -30,6 +51,7 @@
         $btn.find(".spinner").addClass("hidden");
       }
     }
+
     /* =========================
      * LOGIN (AJAX ONLY)
      * ========================= */
@@ -37,6 +59,18 @@
       e.preventDefault();
 
       const $form = $(this);
+      $form.find(".orbitur-form-msg").hide(); // Clear previous messages
+
+      // Client-side validation
+      if (!$form[0].checkValidity()) {
+        showMessage(
+          $form,
+          "Por favor, preencha todos os campos obrigatórios.",
+          "error"
+        );
+        return;
+      }
+
       setLoading($form, true);
 
       // STEP 1: get fresh nonce
@@ -58,18 +92,12 @@
           remember: $form.find('[name="remember"]').is(":checked") ? 1 : 0,
         };
         // debug: log presence of fields (never log password value in production)
-        if (window.console && console.debug) {
-          console.debug("Login payload presence", {
-            email: !!payload.email,
-            pw: !!payload.pw,
-          });
-        }
-
+        // Login logic
         $.post(orbitur_ajax.ajax_url, payload).done(function (res) {
           if (res.success) {
             window.location.href = res.data.redirect;
           } else {
-            showMessage($form, res.data || "Login falhou", "error");
+            showMessage($form, getErrorMessage(res, "Login falhou"), "error");
             setLoading($form, false);
           }
         });
@@ -92,28 +120,45 @@
       $("#orbitur-login-form").removeClass("hidden");
     });
 
-    $("#orbitur-forgot-form").on("submit", function (e) {
+    $(document).on("submit", "#orbitur-forgot-form", function (e) {
       e.preventDefault();
+      var $form = $(this);
+      $form.find(".orbitur-form-msg").hide();
+
+      // Client-side validation
+      if (!$form[0].checkValidity()) {
+        showMessage($form, "Por favor, preencha o email.", "error");
+        return;
+      }
+
+      setLoading($form, true);
 
       $.post(orbitur_ajax.ajax_url, {
         action: "orbitur_forgot_password",
         nonce: orbitur_ajax.nonce,
         email: $("#forgot-email").val(),
-      }).done(function (res) {
-        if (!res.success) {
-          if (typeof Modal !== "undefined") {
-            Modal.error(res.data || "Erro ao enviar email.");
-          } else {
-            alert(res.data || "Erro ao enviar email.");
+      })
+        .done(function (res) {
+          if (!res.success) {
+            showMessage(
+              $form,
+              getErrorMessage(res, "Erro ao enviar email."),
+              "error"
+            );
+            setLoading($form, false);
+            return;
           }
-          return;
-        }
-        if (typeof Modal !== "undefined") {
-          Modal.success(res.data.message);
-        } else {
-          alert(res.data.message);
-        }
-      });
+          showMessage(
+            $form,
+            res.data.message || "Email enviado com sucesso.",
+            "success"
+          );
+          setLoading($form, false);
+        })
+        .fail(function () {
+          showMessage($form, "Erro de rede.", "error");
+          setLoading($form, false);
+        });
     });
 
     /* =========================
@@ -123,6 +168,28 @@
       e.preventDefault();
 
       var $form = $(this);
+
+      // Client-side validation
+      if (!$form[0].checkValidity()) {
+        showMessage(
+          $form,
+          "Por favor, preencha todos os campos obrigatórios.",
+          "error"
+        );
+        return;
+      }
+
+      // Explicit Privacy Policy Check
+      var $privacy = $form.find('input[name="privacy"]');
+      if ($privacy.length && !$privacy.is(":checked")) {
+        showMessage(
+          $form,
+          "É obrigatório aceitar a Política de Privacidade.",
+          "error"
+        );
+        return;
+      }
+
       setLoading($form, true);
 
       // STEP 1: get fresh nonce (cache-safe)
@@ -154,7 +221,11 @@
           $.post(orbitur_ajax.ajax_url, data)
             .done(function (res) {
               if (!res || !res.success) {
-                showMessage($form, res?.data || "Erro ao criar conta", "error");
+                showMessage(
+                  $form,
+                  getErrorMessage(res, "Erro ao criar conta"),
+                  "error"
+                );
                 setLoading($form, false);
                 return;
               }
@@ -164,9 +235,9 @@
                 showMessage(
                   $form,
                   "Conta criada com sucesso. EMAIL: " +
-                  $form.find('[name="email"]').val() +
-                  " PASSWORD: " +
-                  res.data.password,
+                    $form.find('[name="email"]').val() +
+                    " PASSWORD: " +
+                    res.data.password,
                   "success"
                 );
               } else {
@@ -182,7 +253,6 @@
               showMessage($form, "Erro de rede ao criar conta.", "error");
               setLoading($form, false);
             });
-
         } catch (e) {
           console.error("Registration error:", e);
           showMessage($form, "Erro interno ao processar registo.", "error");
@@ -213,7 +283,11 @@
       $.post(orbitur_ajax.ajax_url, payload)
         .done(function (res) {
           if (!res || !res.success) {
-            showMessage($form, res?.data || "Erro ao guardar perfil.", "error");
+            showMessage(
+              $form,
+              getErrorMessage(res, "Erro ao guardar perfil."),
+              "error"
+            );
             setLoading($form, false);
             return;
           }

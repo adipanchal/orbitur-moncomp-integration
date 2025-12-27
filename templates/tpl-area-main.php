@@ -86,43 +86,43 @@
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Nome</label>
+                  <label class="form-group__label form-group__label--small" for="edit-firstname">Nome</label>
                   <input type="text" id="edit-firstname" class="form-group__input" />
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Apelido</label>
+                  <label class="form-group__label form-group__label--small" for="edit-lastname">Apelido</label>
                   <input type="text" id="edit-lastname" class="form-group__input" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">E-mail</label>
+                  <label class="form-group__label form-group__label--small" for="edit-email">E-mail</label>
                   <input type="email" id="edit-email" class="form-group__input" />
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Telefone</label>
-                  <input type="text" id="edit-phone" class="form-group__input phone-input__field" />
+                  <label class="form-group__label form-group__label--small" for="edit-phone">Telefone</label>
+                  <input type="text" id="edit-phone" class="form-group__input" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Morada</label>
+                  <label class="form-group__label form-group__label--small" for="edit-address">Morada</label>
                   <input type="text" id="edit-address" class="form-group__input" />
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Codigo Postal</label>
+                  <label class="form-group__label form-group__label--small" for="edit-zipcode">Codigo Postal</label>
                   <input type="text" id="edit-zipcode" class="form-group__input" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Localidade</label>
+                  <label class="form-group__label form-group__label--small" for="edit-city">Localidade</label>
                   <input type="text" id="edit-city" class="form-group__input" />
                 </div>
                 <div class="form-group select-group">
-                  <label class="form-group__label form-group__label--small">País</label>
+                  <label class="form-group__label form-group__label--small" for="edit-country">País</label>
                   <select id="edit-country" class="form-group__select">
                     <option value="">Selecionar país</option>
                     <option value="AD">Andorra</option>
@@ -387,21 +387,22 @@
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Palavra-passe atual</label>
+                  <label class="form-group__label form-group__label--small" for="old-pw">Palavra-passe atual</label>
                   <input type="password" id="old-pw" class="form-group__input" placeholder="Palavra-passe atual" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Nova palavra-passe</label>
+                  <label class="form-group__label form-group__label--small" for="new-pw">Nova palavra-passe</label>
                   <input type="password" id="new-pw" class="form-group__input" placeholder="Nova Palavra-passe" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Confirmar nova palavra-passe</label>
+                  <label class="form-group__label form-group__label--small" for="confirm-pw">Confirmar nova
+                    palavra-passe</label>
                   <input type="password" id="confirm-pw" class="form-group__input"
                     placeholder="Confirmar nova palavra-passe" />
                 </div>
@@ -488,31 +489,32 @@
             <form id="alter-reserva-form" class="manage-reserva__form">
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Parque</label>
+                  <label class="form-group__label form-group__label--small" for="alt-site">Parque</label>
                   <input type="text" id="alt-site" class="form-group__input" disabled />
                 </div>
 
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Categoria do alojamento desejado</label>
+                  <label class="form-group__label form-group__label--small" for="alt-lodging">Categoria do alojamento
+                    desejado</label>
                   <input type="text" id="alt-lodging" class="form-group__input" disabled />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Data de Entrada</label>
+                  <label class="form-group__label form-group__label--small" for="alt-date-in">Data de Entrada</label>
                   <input type="date" id="alt-date-in" class="form-group__input" />
                 </div>
 
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Data de Saída</label>
+                  <label class="form-group__label form-group__label--small" for="alt-date-out">Data de Saída</label>
                   <input type="date" id="alt-date-out" class="form-group__input" />
                 </div>
               </div>
 
               <div class="form-row form-row--single">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Número de pessoas</label>
+                  <label class="form-group__label form-group__label--small" for="alt-persons">Número de pessoas</label>
                   <input type="number" id="alt-persons" class="form-group__input" />
                 </div>
               </div>
@@ -520,7 +522,7 @@
                 Após a submissão, o seu pedido irá ser analisado e respondido
                 logo que possível.
               </span>
-              <label class="checkbox-label mt-lg mb-lg">
+              <label class="checkbox-label mt-lg mb-lg" for="alt-copy">
                 <input type="checkbox" id="alt-copy" class="checkbox-label__input" />
                 <span class="checkbox-label__text">
                   Quero receber cópia deste pedido de contacto no e-mail.
@@ -563,11 +565,11 @@
                 <div class="member-details__col">
                   <div class="info-item">
                     <div class="info-item__label">Data de inscrição</div>
-                    <div class="info-item__value info-item__value--small" id="card-start">-</div>
+                    <div class="info-item__value" id="card-start">-</div>
                   </div>
                   <div class="info-item">
                     <div class="info-item__label">Data de validade</div>
-                    <div class="info-item__value info-item__value--small" id="card-valid">-</div>
+                    <div class="info-item__value" id="card-valid">-</div>
                   </div>
                 </div>
               </div>
@@ -594,51 +596,55 @@
             <form class="occ-register__form mt-lg" id="occ-register-form">
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Nome*</label>
-                  <input type="text" name="firstname" class="form-group__input" placeholder="Rui" required />
+                  <label class="form-group__label form-group__label--small" for="occ-firstname">Nome*</label>
+                  <input type="text" id="occ-firstname" name="firstname" class="form-group__input" placeholder="Rui"
+                    required />
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Apelido*</label>
-                  <input type="text" name="lastname" class="form-group__input" placeholder="Faria" required />
+                  <label class="form-group__label form-group__label--small" for="occ-lastname">Apelido*</label>
+                  <input type="text" id="occ-lastname" name="lastname" class="form-group__input" placeholder="Faria"
+                    required />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">E-mail*</label>
-                  <input type="email" name="email" class="form-group__input" placeholder="ruifariasantos@gmail.com"
-                    required />
+                  <label class="form-group__label form-group__label--small" for="occ-email">E-mail*</label>
+                  <input type="email" id="occ-email" name="email" class="form-group__input"
+                    placeholder="ruifariasantos@gmail.com" required />
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">TELEFONE*</label>
-                  <input type="tel" name="phone" class="form-group__input phone-input__field" placeholder="Telemóvel"
+                  <label class="form-group__label form-group__label--small" for="occ-phone">TELEFONE*</label>
+                  <input type="tel" id="occ-phone" name="phone" class="form-group__input" placeholder="Telemóvel"
                     required />
                 </div>
               </div>
 
               <div class="form-row form-row--single">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Morada*</label>
-                  <input type="text" name="address" class="form-group__input" placeholder="Rua de Camões, 27"
-                    required />
+                  <label class="form-group__label form-group__label--small" for="occ-address">Morada*</label>
+                  <input type="text" id="occ-address" name="address" class="form-group__input"
+                    placeholder="Rua de Camões, 27" required />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Código Postal*</label>
-                  <input type="text" name="zipcode" class="form-group__input" placeholder="1300-200" required />
+                  <label class="form-group__label form-group__label--small" for="occ-zipcode">Código Postal*</label>
+                  <input type="text" id="occ-zipcode" name="zipcode" class="form-group__input" placeholder="1300-200"
+                    required />
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Localidade*</label>
-                  <input type="text" name="city" class="form-group__input" placeholder="Lisboa" required />
+                  <label class="form-group__label form-group__label--small" for="occ-city">Localidade*</label>
+                  <input type="text" id="occ-city" name="city" class="form-group__input" placeholder="Lisboa"
+                    required />
                 </div>
               </div>
 
               <div class="form-row form-row--single">
                 <div class="form-group select-group">
-                  <label class="form-group__label form-group__label--small">País*</label>
-                  <select name="country" class="form-group__select" required>
+                  <label class="form-group__label form-group__label--small" for="occ-country">País*</label>
+                  <select id="occ-country" name="country" class="form-group__select" required>
                     <option value="" disabled selected>Selecionar</option>
                     <option value="AD">Andorra</option>
                     <option value="AE">Emirados Árabes Unidos</option>
@@ -886,8 +892,8 @@
 
               <div class="form-row">
                 <div class="form-group select-group">
-                  <label class="form-group__label form-group__label--small">Nacionalidade*</label>
-                  <select name="nationality" class="form-group__select" required>
+                  <label class="form-group__label form-group__label--small" for="occ-nationality">Nacionalidade*</label>
+                  <select id="occ-nationality" name="nationality" class="form-group__select" required>
                     <option value="1" selected>NOT ASSIGNED</option>
                     <option value="2">PORTUGAL</option>
                     <option value="3">SPAIN</option>
@@ -1092,43 +1098,48 @@
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Data de Nascimento*</label>
-                  <input type="date" name="birthdate" class="form-group__input" required />
+                  <label class="form-group__label form-group__label--small" for="occ-birthdate">Data de
+                    Nascimento*</label>
+                  <input type="date" id="occ-birthdate" name="birthdate" class="form-group__input" required />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group select-group">
-                  <label class="form-group__label form-group__label--small">Tipo Identificação*</label>
-                  <select name="id_type" class="form-group__select" required>
+                  <label class="form-group__label form-group__label--small" for="occ-id-type">Tipo
+                    Identificação*</label>
+                  <select id="occ-id-type" name="id_type" class="form-group__select" required>
                     <option value="" disabled selected>Selecionar</option>
                     <option value="cc">Cartão de Cidadão</option>
                     <option value="passport">Passaporte</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Número Identificação*</label>
-                  <input type="text" name="id_number" class="form-group__input" placeholder="07984401" required />
+                  <label class="form-group__label form-group__label--small" for="occ-id-number">Número
+                    Identificação*</label>
+                  <input type="text" id="occ-id-number" name="id_number" class="form-group__input"
+                    placeholder="07984401" required />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-group__label form-group__label--small">Número Contribuinte</label>
-                  <input type="text" name="tax_number" class="form-group__input" placeholder="" />
+                  <label class="form-group__label form-group__label--small" for="occ-tax-number">Número
+                    Contribuinte</label>
+                  <input type="text" id="occ-tax-number" name="tax_number" class="form-group__input" placeholder="" />
                 </div>
               </div>
 
               <div class="occ-register__checkboxes">
-                <label class="checkbox-label">
-                  <input type="checkbox" name="terms" class="checkbox-label__input" required />
+                <label class="checkbox-label" for="occ-terms">
+                  <input type="checkbox" id="occ-terms" name="terms" class="checkbox-label__input" required />
                   <span class="checkbox-label__text">
                     * Aceito os
                     <a href="#" class="checkbox-label__link">Termos e condições</a>
                   </span>
                 </label>
 
-                <label class="checkbox-label">
-                  <input type="checkbox" name="newsletter" class="checkbox-label__input" />
+                <label class="checkbox-label" for="occ-newsletter">
+                  <input type="checkbox" id="occ-newsletter" name="newsletter" class="checkbox-label__input" />
                   <span class="checkbox-label__text">
                     *É minha vontade expressa e livre continuar a receber
                     comunicações por parte do OCC por referência a todas as
@@ -1142,7 +1153,7 @@
                   utilizados exclusivamente para fins de informação e
                   divulgação de ações dentro do âmbito de atividade do OCC.
                   Pode consultar a nossa
-                  <a href="#" class="checkbox-label__link">Política de Privacidade</a>
+                  <a href="/politica-de-privacidade/" class="checkbox-label__link">Política de Privacidade</a>
                   e de Proteção de Dados Pessoais em Política & Privacidade e
                   exercer os seus direitos enquanto titular de dados pessoais
                   usando o formulário que a Orbitur disponibiliza para o
